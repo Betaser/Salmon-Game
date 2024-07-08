@@ -4,6 +4,7 @@ import Raylib
 
 let screenWidth: Int32 = 1280
 let screenHeight: Int32 = 720
+let FPS = 60
 
 Raylib.initWindow(screenWidth, screenHeight, "Salmon Game")
 Raylib.setTargetFPS(60)

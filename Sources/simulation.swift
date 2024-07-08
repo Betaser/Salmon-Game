@@ -2,12 +2,25 @@
 import Raylib
 
 class Simulation {
+    struct Inputs {
+        var isCrush: Bool
+        var isSuspend: Bool
+        mutating func shutoffAll() {
+            isCrush = false
+            isSuspend = false
+        }
+        func anyEnabled() -> Bool {
+            return isCrush || isSuspend
+        }
+    }
+
+    static let waterColumnCount = 13
     var water: [WaterColumn] = []
     var counter: Int32
-    var simSpeed = 1.0
+    var simSpeed = 0.0
     var leftoverSpeed = 0.0
-    var isCrush = false
-    var isSuspend = false
+    var inputs: Inputs = Inputs(isCrush: false, isSuspend: false)
+    let disturbance = WaterDisturbance(columnCount: waterColumnCount)
 
     init() {
         counter = 0
@@ -17,24 +30,29 @@ class Simulation {
     func reinit() {
         water.removeAll()
         counter = 0
-        simSpeed = 1
+        simSpeed = 0
         leftoverSpeed = 0.0
-        isCrush = false
-        isSuspend = false
+        inputs.shutoffAll()
 
-        for i in 0..<1 {
+        let horzWaterBuf: Int32 = (screenWidth - Int32(Simulation.waterColumnCount * WaterColumn.WIDTH)) / 2
+
+        for i in 0..<Simulation.waterColumnCount {
             water.append(WaterColumn(position: Vector2(
-                x: Float64(400 + WaterColumn.WIDTH * i), 
+                x: Float64(horzWaterBuf) + Float64(WaterColumn.WIDTH * i), 
                 y: WaterColumn.VERTICAL_ZERO)))
         }
     }
 
     func manageSimSpeed() {
         if Raylib.isKeyPressed(.letterD) {
-            isCrush = true
+            inputs.isCrush = true
         }
         if Raylib.isKeyPressed(.letterS) {
-            isSuspend = true
+            inputs.isSuspend = true
+        }
+
+        if inputs.anyEnabled() {
+            simSpeed = 1
         }
 
         if Raylib.isKeyDown(.left) {
@@ -53,14 +71,12 @@ class Simulation {
         if leftoverSpeed >= 1 {
             leftoverSpeed -= 1
 
-            text = manageWater(isCrush: isCrush, isSuspend: isSuspend)
-            isCrush = false
-            isSuspend = false
+            text = manageWater(isCrush: inputs.isCrush, isSuspend: inputs.isSuspend)
+            inputs.shutoffAll()
         }
         for _ in 0..<Int(simSpeed) {
-            text = manageWater(isCrush: isCrush, isSuspend: isSuspend)
-            isCrush = false
-            isSuspend = false
+            text = manageWater(isCrush: inputs.isCrush, isSuspend: inputs.isSuspend)
+            inputs.shutoffAll()
         }
 
         if let text = text {
@@ -69,12 +85,13 @@ class Simulation {
     }
 
     func manageWater(isCrush: Bool, isSuspend: Bool) -> (String, Int32, Int32, Int32, Color) {
+        // Crush disturbance
+        if isCrush {
+            disturbance.crushColumns(columns: water)
+        }
+
         var text = ""
         for column in water {
-            // Crush disturbance
-            if isCrush {
-                column.crushedBy(amt: 5)
-            }
             // Suspend disturbance
             if isSuspend {
                 column.position.y -= 100
@@ -83,7 +100,7 @@ class Simulation {
 
             text += "Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
         }
-        return (text, screenWidth - 300, 350, 20, Color.darkGreen)
+        return (text, screenWidth - 300, 175, 20, Color.darkGreen)
     }
     
     func update() {
@@ -92,15 +109,16 @@ class Simulation {
             return
         }
 
+        // render verticalZero.
+        let verticalZeroBuf: Int32 = 100
+        Raylib.drawRectangle(verticalZeroBuf, Int32(WaterColumn.VERTICAL_ZERO), screenWidth - 2 * verticalZeroBuf, 5, Color.red)
+        Raylib.drawRectangle(verticalZeroBuf, 20, screenWidth - 2 * verticalZeroBuf, 5, Color.orange)
+
         manageSimSpeed()
 
         for column in water {
             column.render()
         }
-
-        // render verticalZero.
-        let verticalZeroBuf: Int32 = 100
-        Raylib.drawRectangle(verticalZeroBuf, Int32(WaterColumn.VERTICAL_ZERO), screenWidth - 2 * verticalZeroBuf, 5, Color.red)
 
         counter += 1
         Raylib.drawText("simulation counter: \(counter)", 100, 100, 20, Color.darkGreen)
