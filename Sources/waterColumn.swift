@@ -12,7 +12,7 @@ class WaterColumn {
     static let CRUSH_ENERGY_SAVED = 1.00
 
     // debugging
-    private var color: Color
+    var color: Color
     var position: Vector2
     var originalPosition: Vector2
     // up or down, has a similar effect to energy.
@@ -25,7 +25,7 @@ class WaterColumn {
         self.position = position
         verticalVelocity = 0
         verticalZero = 0
-        originalPosition = position
+        originalPosition = position.clone()
         color = Color.blue
         bottom = 0
         expectedCrushStartVelocity = 0
@@ -33,7 +33,7 @@ class WaterColumn {
     }
 
     func reinit() {
-        position = originalPosition
+        position = originalPosition.clone()
         verticalVelocity = 0
         verticalZero = WaterColumn.VERTICAL_ZERO
         color = Color.blue
@@ -68,6 +68,8 @@ class WaterColumn {
                 let velocityRatio = verticalVelocity / expectedCrushStartVelocity
                 if abs(velocityRatio - 1) < 0.1 {
                     verticalVelocity = expectedCrushStartVelocity
+                } else {
+                    print("Inaccurate, is \(verticalVelocity) expected \(expectedCrushStartVelocity)")
                 }
             }
             

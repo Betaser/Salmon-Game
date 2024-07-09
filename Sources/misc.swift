@@ -5,4 +5,7 @@ class Vector2 {
         self.x = x
         self.y = y
     }
+    func clone() -> Vector2 {
+        return Vector2(x: x, y: y)
+    }
 }
