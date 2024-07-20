@@ -17,13 +17,14 @@ class Simulation {
         }
     }
 
-    static let waterColumnCount = 13
+    static let waterColumnCount = 21
+    static let disturbanceCount = 13
     var water: [WaterColumn] = []
     var counter: Int32
     var simSpeed = 0.0
     var leftoverSpeed = 0.0
     var inputs: Inputs = Inputs(isCrush: false, isSuspend: false, ranWaterDragSim: false)
-    let disturbance = WaterDisturbance(columnCount: waterColumnCount)
+    let disturbance = WaterDisturbance(columnCount: disturbanceCount)
 
     init() {
         counter = 0
@@ -40,9 +41,26 @@ class Simulation {
         let horzWaterBuf: Int32 = (screenWidth - Int32(Simulation.waterColumnCount * WaterColumn.WIDTH)) / 2
 
         for i in 0..<Simulation.waterColumnCount {
-            water.append(WaterColumn(position: Vector2(
+            let column = WaterColumn(position: Vector2(
                 x: Float64(horzWaterBuf) + Float64(WaterColumn.WIDTH * i), 
-                y: WaterColumn.VERTICAL_ZERO)))
+                y: WaterColumn.VERTICAL_ZERO))
+            water.append(column)
+        }
+
+        // now set the left and right columns.
+        for i in 1..<Simulation.waterColumnCount - 1 {
+            water[i].left = water[i - 1]
+            water[i].right = water[i + 1] 
+        }
+        water[0].right = water[1]
+        water[water.count - 1].left = water[water.count - 2]
+    }
+
+    deinit {
+        // must deinit water columns' cyclical references.
+        for column in water {
+            column.left = nil
+            column.right = nil
         }
     }
 
@@ -57,7 +75,7 @@ class Simulation {
             inputs.ranWaterDragSim = true
         }
 
-        if inputs.anyEnabled() {
+        if inputs.anyEnabled() && simSpeed == 0 {
             simSpeed = 1
         }
 
@@ -130,11 +148,23 @@ class Simulation {
        
         if waterDrag.startingVelocity == -1 {
             waterDrag.startingVelocity = waterDrag.column.verticalVelocity
-            waterDrag.estimateEndingVelocity = -5.918149 + 5.680574 * exp(0.1427285 * -waterDrag.startingVelocity)
+            // waterDrag.estimateEndingVelocity = -5.918149 + 5.680574 * exp(0.1427285 * -waterDrag.startingVelocity)
+            // print("start at \(waterDrag.startingVelocity)")
+            // inverse for our purposes actually
+            waterDrag.estimateEndingVelocity = -0.8116266 *
+                pow(waterDrag.startingVelocity, 1.016601)
+            
+            // our purposes
+            let _ = -1.228559 * pow(waterDrag.startingVelocity, 0.9833912)
         }
 
         waterDrag.frameCount += 1
 
+        // too lazy to do the sped up sim functionality.
+        waterDrag.column.update()
+        print(waterDrag.column.verticalVelocity)
+
+        /*
         if waterDrag.column.verticalVelocity > 0 && waterDrag.column.verticalVelocity + ACCEL < 0 {
             waterDrag.preApexFC = waterDrag.frameCount
         }
@@ -142,6 +172,8 @@ class Simulation {
         waterDrag.column.verticalVelocity += ACCEL
         waterDrag.column.verticalVelocity *= DRAG_FACTOR
         waterDrag.column.position.y += waterDrag.column.verticalVelocity
+        */
+
         if waterDrag.column.position.y < waterDrag.column.verticalZero {
             // https://python-fiddle.com/examples/matplotlib?checkpoint=1720513149 + mycurvefit + google sheets formatting
             // very accurate, I'm impressed
@@ -161,7 +193,9 @@ class Simulation {
     func manageWater(isCrush: Bool, isSuspend: Bool) -> (String, Int32, Int32, Int32, Color) {
         // Crush disturbance
         if isCrush {
-            disturbance.crushColumns(columns: water)
+            let halfOffset = (Simulation.waterColumnCount - Simulation.disturbanceCount) / 2
+            let disturbedSlice = water[halfOffset..<Simulation.waterColumnCount - halfOffset]
+            disturbance.crushColumns(columns: disturbedSlice)
         }
 
         var text = ""
@@ -186,7 +220,7 @@ class Simulation {
         // render verticalZero.
         let verticalZeroBuf: Int32 = 100
         Raylib.drawRectangle(verticalZeroBuf, Int32(WaterColumn.VERTICAL_ZERO), screenWidth - 2 * verticalZeroBuf, 5, Color.red)
-        Raylib.drawRectangle(verticalZeroBuf, 20, screenWidth - 2 * verticalZeroBuf, 5, Color.orange)
+        Raylib.drawRectangle(verticalZeroBuf, 100, screenWidth - 2 * verticalZeroBuf, 5, Color.orange)
 
         manageSimSpeed()
 
