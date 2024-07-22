@@ -32,7 +32,6 @@ class WaterColumn {
     // up or down, has a similar effect to energy.
     var verticalVelocity: Float64
     var expectedCrushStartVelocity: Float64
-    var crushVelocity: Float64
     private var bottom: Float64
     private (set) var verticalZero: Float64
 
@@ -47,7 +46,6 @@ class WaterColumn {
         color = Color.blue
         bottom = 0
         expectedCrushStartVelocity = 0
-        crushVelocity = 0
         reinit()
     }
 
@@ -58,7 +56,6 @@ class WaterColumn {
         color = Color.blue
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
-        crushVelocity = 0
         disturbance = .freelyMoving
     }
 
@@ -142,8 +139,7 @@ class WaterColumn {
     }
 
     func crushedBy(amt: Float64) {
-        // verticalVelocity += amt
-        crushVelocity += amt
+        verticalVelocity += amt
     }
 
     func update() {
@@ -151,7 +147,7 @@ class WaterColumn {
         let newDip = position.y + verticalVelocity - verticalZero
         
         // Basic way to alter disturbance
-        if abs(verticalVelocity + crushVelocity) + abs(dip) < 2.0 {
+        if abs(verticalVelocity) + abs(dip) < 2.0 && disturbance == .atEdge {
             disturbance = .freelyMoving
             // Assume that either the left or right has columns to disturb.
             // Otherwise, if the column is the last .beingDisturbed, it eventually dies
@@ -186,8 +182,6 @@ class WaterColumn {
                 verticalVelocity *= 0.9
             }
 
-            verticalVelocity += crushVelocity
-            crushVelocity = 0
             // A fraction of dip.
             let springForce = -Self.SPRING_FACTOR * dip
             let totalForce = springForce + Self.MASS * Self.GRAVITY
@@ -210,8 +204,6 @@ class WaterColumn {
         }
 
         verticalVelocity += Self.GRAVITY
-        verticalVelocity += crushVelocity
-        crushVelocity = 0
 
         // now let's try to have the concept of waves
         updateWave()
