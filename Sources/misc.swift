@@ -1,3 +1,20 @@
+typealias UpdateClosures = [UInt : () -> () -> Void]
+
+func indexExprsAndMax(exprs: [(() -> () -> Void)?]) -> (UInt, UpdateClosures) {
+    var index: UInt = 0
+    var maxIndex: UInt = 0
+    var dict = UpdateClosures()
+    for expr in exprs {
+        if let expr = expr {
+            maxIndex = index
+            dict[index] = expr
+        }
+        index += 1
+    }
+
+    return (maxIndex, dict)
+}
+
 class Vector2 {
     var x: Float64
     var y: Float64

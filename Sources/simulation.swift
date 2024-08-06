@@ -7,18 +7,22 @@ class Simulation {
         var isCrush: Bool
         var isSuspend: Bool
         var ranWaterDragSim: Bool
+
         mutating func shutoffAll() {
             isCrush = false
             isSuspend = false
             ranWaterDragSim = false
         }
+
         func anyEnabled() -> Bool {
             return isCrush || isSuspend || ranWaterDragSim
         }
     }
 
-    static let waterColumnCount = 21
-    static let disturbanceCount = 13
+    // static let waterColumnCount = 29
+    // static let disturbanceCount = 13
+    static let waterColumnCount = 29 * 2
+    static let disturbanceCount = 13 * 2
     var water: [WaterColumn] = []
     var counter: Int32
     var simSpeed = 0.0
@@ -38,9 +42,9 @@ class Simulation {
         leftoverSpeed = 0.0
         inputs.shutoffAll()
 
-        let horzWaterBuf: Int32 = (screenWidth - Int32(Simulation.waterColumnCount * WaterColumn.WIDTH)) / 2
+        let horzWaterBuf: Int32 = (screenWidth - Int32(Self.waterColumnCount * WaterColumn.WIDTH)) / 2
 
-        for i in 0..<Simulation.waterColumnCount {
+        for i in 0..<Self.waterColumnCount {
             let column = WaterColumn(position: Vector2(
                 x: Float64(horzWaterBuf) + Float64(WaterColumn.WIDTH * i), 
                 y: WaterColumn.VERTICAL_ZERO))
@@ -48,12 +52,18 @@ class Simulation {
         }
 
         // now set the left and right columns.
-        for i in 1..<Simulation.waterColumnCount - 1 {
+        for i in 1..<Self.waterColumnCount - 1 {
             water[i].left = water[i - 1]
             water[i].right = water[i + 1] 
         }
+        
         water[0].right = water[1]
         water[water.count - 1].left = water[water.count - 2]
+
+        // set the edge columns to atEdge.
+        let halfOffset = (Self.waterColumnCount - Self.disturbanceCount) / 2
+        water[halfOffset].disturbance = .atEdge
+        water[Self.waterColumnCount - halfOffset - 1].disturbance = .atEdge
     }
 
     deinit {
@@ -61,6 +71,7 @@ class Simulation {
         for column in water {
             column.left = nil
             column.right = nil
+            column.wave = nil
         }
     }
 
@@ -96,12 +107,10 @@ class Simulation {
             leftoverSpeed -= 1
 
             text = manageWater(isCrush: inputs.isCrush, isSuspend: inputs.isSuspend)
-            waterDragSim(start: inputs.ranWaterDragSim)
             inputs.shutoffAll()
         }
         for _ in 0..<Int(simSpeed) {
             text = manageWater(isCrush: inputs.isCrush, isSuspend: inputs.isSuspend)
-            waterDragSim(start: inputs.ranWaterDragSim)
             inputs.shutoffAll()
         }
 
@@ -112,101 +121,165 @@ class Simulation {
 
     let ACCEL = -0.06
     let DRAG_FACTOR = /*0.95*/ 0.99
-    struct WaterDrag {
-        var column = WaterColumn(position: Vector2(x: 50, y: WaterColumn.VERTICAL_ZERO))
-        enum State {
-            case starting
-            case running
-            case done
-        }
-        var state = State.done
-        var done = true
-        var frameCount = 0
-        var apexFrameCount = -1
-        var preApexFC = -1
-        var startingVelocity = -1.0
-        var endingVelocity = -1.0
-        var estimateEndingVelocity = -1.0
-    }
-    var waterDrag = WaterDrag()
-    func waterDragSim(start: Bool) {
-        if start {
-            waterDrag.column.verticalVelocity += 4.0 / 30
-            waterDrag.state = .starting
-            waterDrag.apexFrameCount = -1
-            waterDrag.preApexFC = -1
-            waterDrag.frameCount = 0
-            waterDrag.startingVelocity = -1
-            waterDrag.endingVelocity = -1
+    // static var fuckYou = false
 
-            // try to estimate the ending velocity, but see below it's difficult
-            return
-        }
-        if waterDrag.state == .done {
-            return
-        }
-       
-        if waterDrag.startingVelocity == -1 {
-            waterDrag.startingVelocity = waterDrag.column.verticalVelocity
-            // waterDrag.estimateEndingVelocity = -5.918149 + 5.680574 * exp(0.1427285 * -waterDrag.startingVelocity)
-            // print("start at \(waterDrag.startingVelocity)")
-            // inverse for our purposes actually
-            waterDrag.estimateEndingVelocity = -0.8116266 *
-                pow(waterDrag.startingVelocity, 1.016601)
-            
-            // our purposes
-            let _ = -1.228559 * pow(waterDrag.startingVelocity, 0.9833912)
-        }
-
-        waterDrag.frameCount += 1
-
-        // too lazy to do the sped up sim functionality.
-        waterDrag.column.update()
-        print(waterDrag.column.verticalVelocity)
-
-        /*
-        if waterDrag.column.verticalVelocity > 0 && waterDrag.column.verticalVelocity + ACCEL < 0 {
-            waterDrag.preApexFC = waterDrag.frameCount
-        }
-
-        waterDrag.column.verticalVelocity += ACCEL
-        waterDrag.column.verticalVelocity *= DRAG_FACTOR
-        waterDrag.column.position.y += waterDrag.column.verticalVelocity
-        */
-
-        if waterDrag.column.position.y < waterDrag.column.verticalZero {
-            // https://python-fiddle.com/examples/matplotlib?checkpoint=1720513149 + mycurvefit + google sheets formatting
-            // very accurate, I'm impressed
-            // BUT, we want to pass in the correct time into this function, which we do not know about
-            // waterDrag.estimateEndingVelocity = -1.14 + (1.14 + waterDrag.startingVelocity) * exp(-0.05129329 * Double(waterDrag.frameCount))
-            // This function works quite quite well. I would say we should apply this same idea and strategy to the actual simulation.
-
-            print("with starting velocity and \(waterDrag.startingVelocity) frame count of \(waterDrag.frameCount), \(waterDrag.estimateEndingVelocity)")
-            waterDrag.state = .done
-            waterDrag.endingVelocity = waterDrag.column.verticalVelocity
-            print("velocity = \(waterDrag.column.verticalVelocity)")
-            waterDrag.column.reinit()
-            return
-        }
-    }
-
+    var lastEdgeVel = 0.0
     func manageWater(isCrush: Bool, isSuspend: Bool) -> (String, Int32, Int32, Int32, Color) {
         // Crush disturbance
         if isCrush {
-            let halfOffset = (Simulation.waterColumnCount - Simulation.disturbanceCount) / 2
-            let disturbedSlice = water[halfOffset..<Simulation.waterColumnCount - halfOffset]
+            let halfOffset = (Self.waterColumnCount - Self.disturbanceCount) / 2
+            let disturbedSlice = water[halfOffset..<Self.waterColumnCount - halfOffset]
             disturbance.crushColumns(columns: disturbedSlice)
         }
 
-        var text = ""
-        for column in water {
-            // Suspend disturbance
-            if isSuspend {
-                column.position.y -= 100
-            }
-            column.update()
+        // update water loop
+        // do first, because disturbance setting requires a proper initialization of crushing.
+        do {
+            var allClosures: [UpdateClosures] = []
+            var maxIndices: [UInt] = []
 
-            text += "Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
+            for col in water {
+                let (maxIndex, closures) = col.update(awareColumns: water)
+                maxIndices.append(maxIndex)
+                if closures.count > 0 {
+                    allClosures.append(closures) 
+                }
+            }
+
+            var closuresLeftAts: [Int : Int] = [:]
+            for i in 0..<allClosures.count {
+                closuresLeftAts[i] = 0
+            }
+
+            var closureI: UInt = 0
+            while closuresLeftAts.count > 0 {
+                var iter = closuresLeftAts.makeIterator()
+                func loop() {
+                    if let (allClosuresI, dist) = iter.next() {
+                        // decrement dist
+                        closuresLeftAts[allClosuresI] = closuresLeftAts[allClosuresI].unsafelyUnwrapped - 1
+
+                        if dist > 0 {
+                            loop()
+                        }
+
+                        let closures = allClosures[allClosuresI]
+                        var possibleClosure = {}
+
+                        if let closure = closures[closureI] {
+                            possibleClosure = closure()
+                        } else if closureI >= maxIndices[allClosuresI] {
+                            closuresLeftAts.remove(at: closuresLeftAts.index(forKey: allClosuresI).unsafelyUnwrapped)
+                        }
+
+                        loop()
+                        possibleClosure()
+                    } else {
+                        return
+                    }
+                }
+                loop()
+
+                closureI += 1
+            }
+        }
+
+        // set water disturbance values
+        var disturbances: [WaterColumn.Disturbance?] = Array(repeating: nil, count: water.count)
+        do {
+            var alterNum = 0
+            var toPrint: [String] = []
+            for i in 0..<water.count {
+                let column = water[i]
+                let dip = column.position.y - column.verticalZero
+                let disturbed = column.alterDisturbance(dip: dip)
+                toPrint.append("#\(i) \(column.disturbance.toString())")
+
+                if let l = disturbed.0, let r = disturbed.2 {
+                    switch (water[i - 1].disturbance, column.disturbance, water[i + 1].disturbance) {
+                        case (.freelyMoving, .atEdge, .beingDisturbed), (.beingDisturbed, .atEdge, .freelyMoving): do {
+                            toPrint.append("activated on #\(i) \(column.disturbance.toString())")
+                            toPrint.append("\n\nthe cuttoff is \(abs(column.verticalVelocity) + abs(dip) < 4.0)\n\n")
+                            toPrint.append("\nspecifically, \(abs(column.verticalVelocity)) + \(abs(dip))\n")
+                            toPrint.append("the return values are \((l, disturbed.1, r))")
+                            alterNum += 1
+                            disturbances[i - 1] = l
+                            disturbances[i] = disturbed.1
+                            disturbances[i + 1] = r
+                            break
+                        }
+                        default: do {
+                        }
+                    }
+                }
+            }
+
+            for i in 0..<water.count {
+                let disturbance = disturbances[i]
+                if let d = disturbance {
+                    water[i].disturbance = d        
+                }
+            }
+
+            // did we transfer which column is edge properly?
+            var id = 0
+            for col in water {
+                if col.disturbance == .atEdge {
+                    //print("water id \(id)")
+                }
+                id += 1
+            }
+
+            /*
+            var start = -1
+            var startCol = water[0]
+            var end = -1
+            var endCol = water[0]
+
+            for i in 0..<water.count {
+                if let d = disturbances[i] {
+                    water[i].disturbance = d
+                }
+
+                if water[i].disturbance == .atEdge {
+                    if start == -1 {
+                        start = i
+                        startCol = water[i]
+                    } else if end == -1 {
+                        end = i
+                        endCol = water[i]
+                    }
+                }
+            }
+
+            let newFuckYou = start != -1 && end != -1 && start == water.count - end - 1
+
+            if newFuckYou {
+                if let startWave = startCol.wave, let endWave = endCol.wave {
+                print("diffs \(startCol.verticalVelocity - endCol.verticalVelocity) \(startWave.lastEdgeVel - endWave.lastEdgeVel)")
+                }
+            }
+
+            // check for shitty frame
+            if newFuckYou && !Self.fuckYou {
+                print("fuck you.")
+                print(disturbances)
+                for s in toPrint {
+                    print(s)
+                }
+                print(alterNum)
+                Self.fuckYou = true
+            }
+            */
+        }
+
+
+        var text = ""
+        // Too many columns = render only 13 of them I guess?
+        let N = 13
+        let halfish = Int((water.count - N) / 2)
+        for (i, column) in water[halfish..<water.count - halfish].enumerated() {
+            text += "#\(halfish + i) Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
         }
         return (text, screenWidth - 300, 175, 20, Color.darkGreen)
     }
@@ -228,8 +301,6 @@ class Simulation {
             column.render()
         }
         // debugging
-        waterDrag.column.render()
-        Raylib.drawText("Water Drag frames:\nframe \(waterDrag.frameCount)\npreApexFrame \(waterDrag.preApexFC)\nWater Drag starting velocity: \(waterDrag.startingVelocity)\nWater Drag ending velocity: \(waterDrag.endingVelocity)\nWater Drag estimated ending velocity: \(waterDrag.estimateEndingVelocity)", 100, screenHeight - 300, 20, Color.magenta)
 
         counter += 1
         Raylib.drawText("Simulation counter: \(counter)", 100, 100, 20, Color.darkGreen)
