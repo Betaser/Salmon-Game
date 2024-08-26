@@ -21,8 +21,8 @@ class Simulation {
 
     // static let waterColumnCount = 29
     // static let disturbanceCount = 13
-    static let waterColumnCount = 29 * 2
-    static let disturbanceCount = 13 * 2
+    static let waterColumnCount = 29 * 6
+    static let disturbanceCount = 5 * 6
     var water: [WaterColumn] = []
     var counter: Int32
     var simSpeed = 0.0
@@ -127,7 +127,7 @@ class Simulation {
     func manageWater(isCrush: Bool, isSuspend: Bool) -> (String, Int32, Int32, Int32, Color) {
         // Crush disturbance
         if isCrush {
-            let halfOffset = (Self.waterColumnCount - Self.disturbanceCount) / 2
+            let halfOffset = (Self.waterColumnCount - disturbance.columnCount) / 2
             let disturbedSlice = water[halfOffset..<Self.waterColumnCount - halfOffset]
             disturbance.crushColumns(columns: disturbedSlice)
         }
@@ -221,15 +221,6 @@ class Simulation {
                 }
             }
 
-            // did we transfer which column is edge properly?
-            var id = 0
-            for col in water {
-                if col.disturbance == .atEdge {
-                    //print("water id \(id)")
-                }
-                id += 1
-            }
-
             /*
             var start = -1
             var startCol = water[0]
@@ -307,5 +298,23 @@ class Simulation {
         Raylib.drawText("Simulation Speed: \(String(format: "%.4f", simSpeed))", screenWidth - 300, 100, 20, Color.darkGreen)
         // controls
         Raylib.drawText("Controls: \nR to reset simulation\nD to crush water\nS to suspend water\nW to test water drag", 100, 150, 20, Color.darkGreen)
+
+        // debugging atEdge stuff
+        var atEdges: [WaterColumn] = []
+        for column in water {
+            if column.disturbance == .atEdge {
+                atEdges.append(column)
+            }
+        } 
+        
+        var newEdgeInfo = ""
+        for atEdge in atEdges {
+            newEdgeInfo = "\(newEdgeInfo), vel \(atEdge.verticalVelocity) dip \(atEdge.position.y - atEdge.verticalZero)"
+        }
+        if Raylib.isKeyPressed(.letterI) {
+            edgeInfo = newEdgeInfo 
+        }
+        Raylib.drawText("edge info: \(edgeInfo)", 100, screenHeight - 100, 20, Color.black)
     }
+    var edgeInfo = ""
 }

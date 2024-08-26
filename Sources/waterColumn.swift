@@ -9,7 +9,7 @@ class WaterColumn {
     static let GRAVITY = 0.045
     // static let WIDTH = 20
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
-    static let WIDTH = 10
+    static let WIDTH = 4
     static let HEIGHT = 200
     static let CRUSH_ENERGY_SAVED = 0.99
 
@@ -39,7 +39,15 @@ class WaterColumn {
     var position: Vector2
     var originalPosition: Vector2
     // up or down, has a similar effect to energy.
-    var verticalVelocity: Float64
+    var velocity = Vector2(x: 0, y: 0)
+    var verticalVelocity: Float64 {
+        set(val) {
+            velocity.y = val
+        }
+        get {
+            return velocity.y
+        }
+    }
     var expectedCrushStartVelocity: Float64
     private var bottom: Float64
     private (set) var verticalZero: Float64
@@ -49,13 +57,12 @@ class WaterColumn {
     init(position: Vector2) {
         refCount += 1
         self.position = position
-        verticalVelocity = 0
         verticalZero = 0
         originalPosition = position.clone()
         color = Color.blue
         bottom = 0
         expectedCrushStartVelocity = 0
-        wave = Wave(owner: self) 
+        wave = Wave() 
         reinit()
     }
 
@@ -72,14 +79,10 @@ class WaterColumn {
     // make sure to nil the wave when you're done with this object!
     var wave: Wave? = nil
     class Wave {
-        unowned let owner: WaterColumn
-
-        init(owner: WaterColumn) {
-            self.owner = owner
-        }
-
         var lastEdgeVel = 0.0
-        func alterEdgeVel(awareColumns: some Collection<WaterColumn>) -> () -> Void {
+
+        // Rejected
+        private func alterEdgeVel(column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> () -> Void {
             // vel is inversely proporitional to avg of columns?
             var avgVel = 0.0
             var total = 0.0
@@ -90,55 +93,50 @@ class WaterColumn {
                 total += column.verticalVelocity
                 avgVel += abs(column.verticalVelocity)
             }
-            avgVel = avgVel / Double(awareColumns.count) * (total > 0 ? 1 : -1)
+            avgVel = avgVel / Float64(awareColumns.count) * (total > 0 ? 1 : -1)
 
             // Because we can't edit owner.verticalVelocity, and as a solution,
             //  I just want to grab the primitives and update later.
+            // I would rather have this only kick in when the wave falls below verticalZero.
             return { [self] in 
-                owner.verticalVelocity += avgVel - lastEdgeVel
+                column.verticalVelocity += avgVel - lastEdgeVel
                 lastEdgeVel = avgVel
             }
         }
 
-        // Bruh this works... why not what's above
-        var lastVel = 0.0
-        func testing(verts: [Double?]) {
-            var avg = 0.0
-            var total = 0.0
-            for vert in verts {
-                if let vert = vert {
-                    total += vert
-                    avg += abs(vert)
+        // Rejected
+        func alterFreelyMovingVel() {}
+
+        fileprivate func update(isNewDip: Bool, column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> () -> Void {
+            // The wave algo! 
+            // Every column that is freelyMoving or atEdge should be held to the same physics
+            //  so that the edge columns don't seem out of place. (naive assumption)
+            // just code it all inline here, why not.
+
+            if column.disturbance == .beingDisturbed || 
+               column.disturbance == .atEdge ||
+               column.disturbance == .freelyMoving {
+                // turns every wave semi-slowly into a triangular shape, 
+                //  according to the stickyoutnessReq for energy loss
+                // Overall, a weird effect that shouldn't necessarily be in here.
+                let triangularize = true
+                if triangularize {
+                    let stickyoutness = 
+                        abs(column.position.y - (column.left?.position.y ?? column.position.y)) + 
+                        abs(column.position.y - (column.right?.position.y ?? column.position.y)) 
+                    let stickyoutnessReq = 3.0
+                    if stickyoutness > stickyoutnessReq {
+                        // some columns shoot up too much, just have it be slowed down if that happens.
+                        let energyRatioLost = 0.0001 * stickyoutness
+                        let lostSpeed = column.verticalVelocity * energyRatioLost
+
+                        return { column.verticalVelocity -= lostSpeed }
+                    }
                 }
             }
-            avg = avg / Double(verts.count) * (total > 0 ? 1 : -1)
-            owner.verticalVelocity += avg - lastVel
-            lastVel = avg
-        }
 
-        func alterFreelyMovingVel() {
-            // Do later
-        }
-
-        func update(awareColumns: some Collection<WaterColumn>) -> () -> Void {
-            /*
-            if left == nil {
-                // left wall
-            } else if right == nil {
-                // right wall
-            }
-            */
-
-            // The wave algo! 
-            if owner.disturbance == .freelyMoving {
-                // implement later
-                alterFreelyMovingVel()
-            } else if owner.disturbance == .atEdge {
-                return alterEdgeVel(awareColumns: awareColumns)
-            }
-
-            return {}
-
+            // blah long comments.
+            do {
             /*
             https://theconversation.com/curious-kids-how-do-ripples-form-and-why-do-they-spread-out-across-the-water-120308
             Water is also made of molecules. But during a ripple, the water molecules don’t move away from the rock, as you might expect. 
@@ -212,6 +210,9 @@ class WaterColumn {
             // How do waves lose x velocity?
             //  Idea: It slowly decays
             //  Idea: It instantly loses it after passing some x velocity on 
+            }
+
+            return {}
         }
     }
 
@@ -227,9 +228,13 @@ class WaterColumn {
     func alterDisturbance(dip: Float64) -> (Disturbance?, Disturbance, Disturbance?) {
         // Basic way to alter disturbance
         var ret: (Disturbance?, Disturbance, Disturbance?) = (left?.disturbance, disturbance, right?.disturbance)
+        let disturbanceThreshold = 2.0
+        // dip will naturally settle around 4.5!
 
         var change = false
-        if abs(verticalVelocity) + abs(dip) < 4.0 && disturbance == .atEdge {
+        if abs(verticalVelocity) < disturbanceThreshold && 
+           abs(dip - 4.5) < 1.0 &&
+           disturbance == .atEdge {
 
             // Assume that either the left or right has columns to disturb.
             // Otherwise, if the column is the last .beingDisturbed, it eventually dies
@@ -269,10 +274,18 @@ class WaterColumn {
     }
 
     func update(awareColumns: some Collection<WaterColumn>) -> (UInt, UpdateClosures) {
+        let dip = position.y - verticalZero 
+        let newDip = position.y + verticalVelocity - verticalZero
+        // generally, make newDip have a bit of a buffer.
+
+        let dipBuffer = -0.0
+
+        let isNewDip = newDip >= dipBuffer && dip < dipBuffer
         func alterWavePosColor(updatePosAndColor: @escaping () -> () -> Void) -> (UInt, UpdateClosures) {
             // now let's try to have the concept of waves
             let waveAlter: (() -> () -> Void)? = if let wave = wave {
-                { wave.update(awareColumns: awareColumns) }
+                { wave.update(isNewDip: isNewDip, column: self, awareColumns: awareColumns) }
+                // nil
             } else {
                 nil
             }
@@ -282,28 +295,9 @@ class WaterColumn {
             ])
         }
 
-        let dip = position.y - verticalZero 
-        let newDip = position.y + verticalVelocity - verticalZero
-
         // A crush disruption can only occur here.
         // When Underwater
-        if newDip >= 0 {
-            // as the water passes past vertical zero from above, reset position to vertical zero and try to set the proper velocity
-            // basically we do noise correction which is funky.
-            if dip < 0 {
-                /*
-                position.y = verticalZero
-                let velocityRatio = verticalVelocity / expectedCrushStartVelocity
-                if abs(velocityRatio - 1) < 0.1 {
-                    verticalVelocity = expectedCrushStartVelocity
-                } else {
-                    print("Inaccurate, is \(verticalVelocity) expected \(expectedCrushStartVelocity)")
-                }
-                */
-
-                // maybe the bigger velocity is, the more it is made smaller? That is, a function that is more harsh towards large values?
-                verticalVelocity *= 0.9
-            }
+        if newDip >= dipBuffer {
 
             // A fraction of dip.
             let springForce = -Self.SPRING_FACTOR * dip
@@ -315,16 +309,16 @@ class WaterColumn {
             // being crushed
 
             return alterWavePosColor(updatePosAndColor: { [self] in 
-                    position.y += verticalVelocity
-                    // invert the color
-                    let clr = disturbanceColors[disturbance]!
-                    color = Color(
-                        r: UInt8(255 * 0.3 + Float64(clr.r) * 0.7),
-                        g: UInt8(255 * 0.3 + Float64(clr.g) * 0.7),
-                        b: UInt8(255 * 0.3 + Float64(clr.b) * 0.7),
-                        a: clr.a)
-                    return {}
-                })
+                position.y += verticalVelocity
+                // invert the color
+                let clr = disturbanceColors[disturbance]!
+                color = Color(
+                    r: UInt8(255 * 0.3 + Float64(clr.r) * 0.7),
+                    g: UInt8(255 * 0.3 + Float64(clr.g) * 0.7),
+                    b: UInt8(255 * 0.3 + Float64(clr.b) * 0.7),
+                    a: clr.a)
+                return {}
+            })
         }
 
         verticalVelocity += Self.GRAVITY

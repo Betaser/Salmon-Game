@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:Salmon-Game}",
+            "name": "Debug Salmon-Game",
+            "program": "${workspaceFolder:Salmon-Game}\\.build\\debug\\Salmon-Game.exe",
+            "preLaunchTask": "swift: Build Debug Salmon-Game"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:Salmon-Game}",
+            "name": "Release Salmon-Game",
+            "program": "${workspaceFolder:Salmon-Game}\\.build\\release\\Salmon-Game.exe",
+            "preLaunchTask": "swift: Build Release Salmon-Game"
+        }
+    ]
+}
