@@ -60,13 +60,21 @@ class WaterDisturbance {
             // let _ = -1.228559 * pow(waterDrag.startingVelocity, 0.9833912)
             let crushVel = -1.228559 * pow(velocity, 0.9833912)
             column.expectedCrushStartVelocity = crushVel
-            column.crushedBy(amt: -crushVel)
+            // SO WE CAN JUST SEE HORZ STUFF
+            column.crushedBy(amt: -2)
+
+            // BUT also, define how x velocities get set 
+            // (because they are what truly cause vertical force resulting in waves.)
         }
 
         // make the columns edge columns
         assert(columns.count >= 2)
         columns.first!.disturbance = .atEdge
         columns.get(-1)!.disturbance = .atEdge
+
+        let vacuumLedVel = columnHeights.reduce(0, { a, b in a + b })
+        columns.first!.velocity.x += vacuumLedVel / 300
+        columns.get(-1)!.velocity.x += -vacuumLedVel / 300
 
         // slices are efficient views
         // startIndex != 0 because it is a slice.

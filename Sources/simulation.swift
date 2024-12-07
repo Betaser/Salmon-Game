@@ -134,12 +134,19 @@ class Simulation {
 
         // update water loop
         // do first, because disturbance setting requires a proper initialization of crushing.
+
+        var waveData: [(Float64, Float64)] = []
+        for col in water {
+            waveData.append((col.left?.velocity.x ?? 0, col.right?.velocity.x ?? 0))
+        }
+                // let leftV = column.left?.velocity.x ?? 0
+                // let rightV = column.right?.velocity.x ?? 0
         do {
             var allClosures: [UpdateClosures] = []
             var maxIndices: [UInt] = []
 
-            for col in water {
-                let (maxIndex, closures) = col.update(awareColumns: water)
+            for (i, col) in water.enumerated() {
+                let (maxIndex, closures) = col.update(data: waveData[i], awareColumns: water)
                 maxIndices.append(maxIndex)
                 if closures.count > 0 {
                     allClosures.append(closures) 
@@ -270,7 +277,8 @@ class Simulation {
         let N = 13
         let halfish = Int((water.count - N) / 2)
         for (i, column) in water[halfish..<water.count - halfish].enumerated() {
-            text += "#\(halfish + i) Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
+            // text += "#\(halfish + i) Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
+            text += "#\(halfish + i) x vel: \(String(format: "%.4f", column.velocity.x))\n"
         }
         return (text, screenWidth - 300, 175, 20, Color.darkGreen)
     }

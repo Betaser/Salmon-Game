@@ -1,3 +1,4 @@
+import Foundation
 import Raylib
 // position at top left
 // could consider the center as the position
@@ -51,6 +52,7 @@ class WaterColumn {
     var expectedCrushStartVelocity: Float64
     private var bottom: Float64
     private (set) var verticalZero: Float64
+    var restitution: Float64;
 
     deinit { refCount -= 1 }
 
@@ -62,6 +64,7 @@ class WaterColumn {
         color = Color.blue
         bottom = 0
         expectedCrushStartVelocity = 0
+        restitution = 0.9;
         wave = Wave() 
         reinit()
     }
@@ -70,10 +73,17 @@ class WaterColumn {
         position = originalPosition.clone()
         verticalVelocity = 0
         verticalZero = Self.VERTICAL_ZERO
+        velocity.x = 0
+        velocity.y = 0
         color = Color.blue
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
         disturbance = .freelyMoving
+    }
+
+    func clone() -> WaterColumn {
+        var ret = WaterColumn(position: position)
+        return ret
     }
 
     // make sure to nil the wave when you're done with this object!
@@ -107,19 +117,20 @@ class WaterColumn {
         // Rejected
         func alterFreelyMovingVel() {}
 
-        fileprivate func update(isNewDip: Bool, column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> () -> Void {
+        fileprivate func update(data: (Float64, Float64), isNewDip: Bool, column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> (() -> () -> Void) {
             // The wave algo! 
             // Every column that is freelyMoving or atEdge should be held to the same physics
             //  so that the edge columns don't seem out of place. (naive assumption)
             // just code it all inline here, why not.
 
+            if false {
             if column.disturbance == .beingDisturbed || 
                column.disturbance == .atEdge ||
                column.disturbance == .freelyMoving {
                 // turns every wave semi-slowly into a triangular shape, 
                 //  according to the stickyoutnessReq for energy loss
                 // Overall, a weird effect that shouldn't necessarily be in here.
-                let triangularize = true
+                let triangularize = false
                 if triangularize {
                     let stickyoutness = 
                         abs(column.position.y - (column.left?.position.y ?? column.position.y)) + 
@@ -130,13 +141,217 @@ class WaterColumn {
                         let energyRatioLost = 0.0001 * stickyoutness
                         let lostSpeed = column.verticalVelocity * energyRatioLost
 
-                        return { column.verticalVelocity -= lostSpeed }
+                        return { 
+                            column.verticalVelocity -= lostSpeed
+                            return {} 
+                        }
                     }
                 }
             }
+            }
 
-            // blah long comments.
-            do {
+            // blah long comments. Contains the massive brainstorming rambling paragraph
+            if true || isNewDip {
+                func inelasticCollision(v: Float64, colliderV: Float64) -> Float64 {
+                    return (1 - column.restitution) / 2.0 * v + (1 + column.restitution) / 2.0 * colliderV
+                }
+
+                // deal with columns who are next to nothing.
+                let leftV = column.left?.velocity.x ?? 0
+                let rightV = column.right?.velocity.x ?? 0
+                // let leftV = data.0
+                // let rightV = data.1
+
+                let currV = column.velocity.x
+                /*
+                // if we are colliding or pushing, do include the velocity in neighboringV
+                if (leftV * currV > 0) {
+                    // colliding 
+                } else {
+                    // pushing
+                    if (leftV - currV > 0) {
+                    }
+                }
+                */
+                let leftUsed = leftV * currV > 0 || leftV - currV > 0
+                let rightUsed = rightV * currV > 0 || rightV - currV < 0
+                let neighboringV = (leftUsed ? leftV : 0) + (rightUsed ? rightV : 0)
+
+                let collidedVel = inelasticCollision(v: currV, colliderV: neighboringV)
+                // the two expr below are different.
+                // let otherVel = currV + neighboringV - collidedVel
+                // let otherVel = inelasticCollision(v: neighboringV, colliderV: currV)
+                // this is not symmetric either:
+                // let otherVel = leftV + rightV
+                let otherVel = currV
+
+                // But, we also need to calculate the inelastic collision results for the other columns, 
+                // otherwise we just gain speed over time.
+                let xVel = column.velocity.x
+                let verticalVel = column.verticalVelocity
+                var lv = column.left?.velocity.x ?? 0
+                var rv = column.right?.velocity.x ?? 0
+                // so if we have lv, rv = -3, 5, and otherVel = 2, then we should distribute them to be -1/3, 1/3
+                let factor = otherVel / (abs(lv) + abs(rv))
+
+                return {
+                    if collidedVel != 0 {
+                        // print(collidedVel)
+                    }
+                    let velChange = abs(collidedVel) - abs(xVel) 
+                    // column.verticalVelocity *= 1.05
+                    column.velocity.x = collidedVel * 0.2
+
+                    // column.verticalVelocity = 2 / (abs(column.velocity.x) + 1)
+
+                    if (velChange < 0) {
+                        // print("change by \(velChange)")
+                        // pow is not symmetrical maybe?
+                        // column.verticalVelocity = verticalVel + -pow(-velChange, 0.4) * 0.5
+                        column.verticalVelocity = verticalVel + velChange * 0.5
+                        // column.verticalVelocity = 2 / -(abs(column.velocity.x) + 1)
+                    }
+
+                    return {
+                        // So the code below is symmetrical, just for testing purposes.
+                        /*
+                        column.left?.velocity.x += -9
+                        column.right?.velocity.x += 9
+                        */
+
+                        // the first two below things are not symmetric, but the else case works.
+
+                        // setting only left or only right in these bools aren't symmetric, but they should be.
+
+                        if !leftUsed || column.left == nil {
+                            if false && abs(velChange) > 10 {
+                            print("\(collidedVel) \(xVel)")
+                            print(column.verticalVelocity)
+                            }
+                            // it is not symmetric to set x to any value, dunno why.
+                            // this zeroes things out usually.
+                            // column.right?.velocity.x += otherVel
+                            // column.right?.velocity.x /= 999
+                            // column.right?.velocity.x -= 0.2;
+                            // below works for using f(abs(vel.x)) instead of collisions.
+                            // this is symmetric
+                            // column.right?.verticalVelocity += 1
+                        }
+                        if !rightUsed || column.right == nil {
+                            // column.left?.velocity.x += otherVel
+                            // column.left?.velocity.x /= 999
+                            // column.left?.velocity.x += 0.2;
+                            // column.left?.verticalVelocity += 1
+                        }
+                        // if column.left != nil && column.right != nil {
+                        // not symmetric in combination with the stuff above, even when the stuff above is by itself symmetric
+                        if !((!leftUsed || column.left == nil) || (!rightUsed || column.right == nil)) {
+                            // column.left?.velocity.x = lv + -9
+                            // column.right?.velocity.x = rv + 9
+                            // clearly otherVel and factor aren't calculated right; they need to be abs or else its not symmetric.
+                            column.left?.velocity.x = lv == 0 ? abs(otherVel) / 2 : lv * abs(factor)
+                            column.right?.velocity.x = rv == 0 ? -abs(otherVel) / 2 : rv * abs(factor)
+                            // print(column.left?.velocity.x)
+                        }
+                    }
+                }
+            /* Look at paper diagram for more info.
+            Key points:
+            1. Apply 1D inelastic collision physics with a defined resitution coefficient
+            2. Treat the v1 and v2 inputs into the equation as follows:
+                i. v1 x velocity of the current column
+                ii. v2 x velocity of the sum of the neighboring columns, with rules on "pushing" and "colliding"
+            3. After finding the final x velocity, if it is less than the prev frame's, turn that into vertical velocity
+
+            Screw the stuff below
+            */
+
+            /*
+            Latest concerns:
+            I assumed that water columns collide into each other equally into a middle column, but this need not be the case. 
+            What about two water columns next to each other than get sent into each other?
+            h:  2  0     0  2
+            hv: >> >>> <<< <<
+                    A   B
+            Call the two central columns A and B.
+            A and B have relative velocities of the following.
+            For A, 2 - 3 = -1 (1 to the left) on its left, and -3 - 3 = -6 (6 to the left) on its right. 
+            Take the difference and absolute value it and we get |-1 - -6| = 5. But, we should instead just do |2 - -3| = 5.
+            For B, we do |-3 - 2| = 5.
+            We conclude that we take the magnitude of their energy and set vertical velocity to a function of that.
+            On the other hand, the resulting x velocity of the water column should be the sum plus the current x velocity.
+            For A: 2 + -3 + 3 = 2
+            For B: 3 + -2 - 3 = -2
+            Therefore, we get
+            h:  2 f(5)  f(5) 2
+            hv: >> >>    << <<
+                    A    B
+            But, that assumed the columns surrounding A and B did not change. We expect that they lost some energy.
+            Therefore there can be a simple energy decay for the water x velocity. 
+            I think the higher the water is, the more percentage of x velocity it loses. 
+
+            However, the more important example to look at is this:
+            0 >>> > <   ->    0  > >>> <
+            a  b  c d         a  b  c  d
+            Intuitively, we can see that b transferred most of its x velocity into c. c gained b + d = 2 velocity.
+            b would be calculated as 0 + 1 + 3 = 4 velocity, but this makes no sense. We reject that idea.
+            We therefore accept the outcome of b imparting its energy into c.
+            To achieve this, we can go from left to right or right to left, and make sure we get the same result.
+
+            Left to right case:
+            We first come across the column b. It has a higher velocity than that to its left and right.
+            Here, apply elastic headon collision formula.
+            Then, vb = 3, vc = -1
+                  v'b = vc, v'c = vb (literally just a swap)
+            Ex:
+            0 >>> < <   ->    0  < >>> <
+            a  b  c d         a  b  c  d
+            We notice b 
+
+            NOTE however, these interactions should only kick in after the first wave from the initial disturbance.
+            */
+
+            /*
+            I honestly kind of forget what I was saying, though I'm sure when I find my diagrams I'll remember.
+            However, let's just try deriving a new strategy, why not.
+            So, we like the idea that the impulse of some imaginary object pushing water down causes everything to follow.
+            Okay, well I believe that in real life, the water will be forced to run into itself around the object as the object sinks far enough. And we remember that we desire for the first peak to be a simple spring-based and gravity-affected trajectory. 
+            After such behavior, let's consider what occurs after this peak. So, we do have to define when weird other interactions besides springs and gravity matter. (TODO)
+            But suppose we have figured out how to define the instances in which other interactions affect trajectories.
+            For simplicity's sake, perhaps let's imagine an object that is causing the splash as being a super thin disk. I mean, for a salmon's tail this is reasonable. 
+            Then we can know that the sudden vacuum created by the slap of the tail accelerating water downards should cause water that was the to left and right of the water displaced to flow inwards. What happens then?
+            Well we know that the first column is about as wide at the base as the object that caused such a thing to occur. Subsequent peaks should be thinner, according to real life.
+            Then to mimic this, as water crashes into itself side-on, it should probably yeet upwards. This is because it can't go downwards, and it is being compressed from the sides. 
+            Suppose we take the first instance of a little bit of water crashing into itself. We can say it crashes into itself within one location, so one column gets excited.
+            The excited column yeets upwards. On the next frame, the column gets compressed on the left and right again, but less so, since energy was lost. 
+            The one column gets compressed again even more, and the left and right columns get compressed themselves, so they should yeet up. But how is this possible to calculate? 
+            Exhibit A:
+            Columns represented under the ________ representing vertical zero.
+            Height represented with h: row and numbers on top of each column.
+            horizontal velocity with >>>> <<<<
+
+            h:  +0 +1 +3 +1 +0
+            hv: >>>        <<<
+            ____-2 -1 +0 +1 +2____
+
+            h:  +0 +2 +5 +2 +0
+            hv: >>          <<
+            ____-2 -1 +0 +1 +2____
+
+            Of course this example is of symmetric, odd-numbered column disturbance, which is the design which I am targeting.
+            Note that the relative velocity of the peak column is massive from the right and left. It goes from +0 +0 +0 (x vel of left column, x vel of it, x vel of right column) to +5 +0 +5 for example.
+            For the columns next to it, take the left column for example. It goes from +0 +3 +0 to +3 +3 +0 as the vacuum pulls the columns that are on the edge of the disturbance move.
+            (Here, note that even though the edge of the disturbance moves inwards, we follow the edge column, so it goes from +7 to +3 velocity.) (Also note that there has to be some intermediate column "created" in a sense, since the edge moves but no gap is created.)
+            Well, eventually it collides with the edge coming from the other side. This frame looks like this:
+            +3 +3 |collision here!| -3 -3
+            On the next frame, it turns into 
+            +3 +1 |collision here!| -1 -3
+            The center column still has no velocity, but we can see that the columns which just gave the center column energy now have less x velocity. They now have relative velocity, and are being slightly compressed.
+            Therefore, they should get some excitement upwards. And the process will lead to some kind of bell curve I have to guess.
+            
+            Okay, then we should return to asking when this comes into play. And I think the answer is when water is below verticalZero, but upon the fish tail slapping originally, we pretend some length of an object is passing through and stops this interaction from occuring.
+            */
+
             /*
             https://theconversation.com/curious-kids-how-do-ripples-form-and-why-do-they-spread-out-across-the-water-120308
             Water is also made of molecules. But during a ripple, the water molecules don’t move away from the rock, as you might expect. 
@@ -212,7 +427,7 @@ class WaterColumn {
             //  Idea: It instantly loses it after passing some x velocity on 
             }
 
-            return {}
+            return { return {} }
         }
     }
 
@@ -273,7 +488,7 @@ class WaterColumn {
         return ret
     }
 
-    func update(awareColumns: some Collection<WaterColumn>) -> (UInt, UpdateClosures) {
+    func update(data: (Float64, Float64), awareColumns: some Collection<WaterColumn>) -> (UInt, UpdateClosures) {
         let dip = position.y - verticalZero 
         let newDip = position.y + verticalVelocity - verticalZero
         // generally, make newDip have a bit of a buffer.
@@ -284,8 +499,7 @@ class WaterColumn {
         func alterWavePosColor(updatePosAndColor: @escaping () -> () -> Void) -> (UInt, UpdateClosures) {
             // now let's try to have the concept of waves
             let waveAlter: (() -> () -> Void)? = if let wave = wave {
-                { wave.update(isNewDip: isNewDip, column: self, awareColumns: awareColumns) }
-                // nil
+                wave.update(data: data, isNewDip: isNewDip, column: self, awareColumns: awareColumns)
             } else {
                 nil
             }
@@ -295,10 +509,10 @@ class WaterColumn {
             ])
         }
 
+        // When Underwater, spring back upwards
         // A crush disruption can only occur here.
-        // When Underwater
+        // Note that wave.update is ran whether or not this if statement runs!
         if newDip >= dipBuffer {
-
             // A fraction of dip.
             let springForce = -Self.SPRING_FACTOR * dip
             let totalForce = springForce + Self.MASS * Self.GRAVITY

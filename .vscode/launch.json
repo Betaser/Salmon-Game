@@ -9,7 +9,7 @@
             "args": [],
             "cwd": "${workspaceFolder:Salmon-Game}",
             "name": "Debug Salmon-Game",
-            "program": "${workspaceFolder:Salmon-Game}\\.build\\debug\\Salmon-Game.exe",
+            "program": "${workspaceFolder:Salmon-Game}/.build/debug/Salmon-Game",
             "preLaunchTask": "swift: Build Debug Salmon-Game"
         },
         {
@@ -21,7 +21,7 @@
             "args": [],
             "cwd": "${workspaceFolder:Salmon-Game}",
             "name": "Release Salmon-Game",
-            "program": "${workspaceFolder:Salmon-Game}\\.build\\release\\Salmon-Game.exe",
+            "program": "${workspaceFolder:Salmon-Game}/.build/release/Salmon-Game",
             "preLaunchTask": "swift: Build Release Salmon-Game"
         }
     ]
