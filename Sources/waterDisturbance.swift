@@ -73,8 +73,8 @@ class WaterDisturbance {
         columns.get(-1)!.disturbance = .atEdge
 
         let vacuumLedVel = columnHeights.reduce(0, { a, b in a + b })
-        columns.first!.velocity.x += vacuumLedVel / 300
-        columns.get(-1)!.velocity.x += -vacuumLedVel / 300
+        columns.first!.velocity.x += vacuumLedVel / 1000
+        columns.get(-1)!.velocity.x += -vacuumLedVel / 1000
 
         // slices are efficient views
         // startIndex != 0 because it is a slice.

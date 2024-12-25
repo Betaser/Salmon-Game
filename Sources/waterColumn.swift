@@ -10,7 +10,7 @@ class WaterColumn {
     static let GRAVITY = 0.045
     // static let WIDTH = 20
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
-    static let WIDTH = 4
+    static let WIDTH = 4 * 3
     static let HEIGHT = 200
     static let CRUSH_ENERGY_SAVED = 0.99
 
@@ -33,7 +33,7 @@ class WaterColumn {
     let disturbanceColors: [Disturbance: Color] = [
         .freelyMoving: Color.blue,
         .atEdge: Color.green,
-        .beingDisturbed: Color.yellow
+        .beingDisturbed: Color.orange
     ]   
 
     var color: Color
@@ -50,6 +50,7 @@ class WaterColumn {
         }
     }
     var expectedCrushStartVelocity: Float64
+    var id: Int32 = 0
     private var bottom: Float64
     private (set) var verticalZero: Float64
     var restitution: Float64;
@@ -79,6 +80,10 @@ class WaterColumn {
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
         disturbance = .freelyMoving
+            let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * WaterColumn.WIDTH)) / 2.0
+            let id = Int32((position.x - horzWaterBuf) / Float64(WaterColumn.WIDTH))
+            self.id = id
+            print(id)
     }
 
     func clone() -> WaterColumn {
@@ -152,8 +157,8 @@ class WaterColumn {
 
             // blah long comments. Contains the massive brainstorming rambling paragraph
             if true || isNewDip {
-                func inelasticCollision(v: Float64, colliderV: Float64) -> Float64 {
-                    return (1 - column.restitution) / 2.0 * v + (1 + column.restitution) / 2.0 * colliderV
+                func inelasticCollision(restitution: Float64, v: Float64, colliderV: Float64) -> Float64 {
+                    return (1 - restitution) / 2.0 * v + (1 + restitution) / 2.0 * colliderV
                 }
 
                 // deal with columns who are next to nothing.
@@ -177,13 +182,13 @@ class WaterColumn {
                 let rightUsed = rightV * currV > 0 || rightV - currV < 0
                 let neighboringV = (leftUsed ? leftV : 0) + (rightUsed ? rightV : 0)
 
-                let collidedVel = inelasticCollision(v: currV, colliderV: neighboringV)
+                let collidedVel = inelasticCollision(restitution: column.restitution, v: currV, colliderV: neighboringV)
                 // the two expr below are different.
-                // let otherVel = currV + neighboringV - collidedVel
+                let otherVel = currV + neighboringV - collidedVel
                 // let otherVel = inelasticCollision(v: neighboringV, colliderV: currV)
                 // this is not symmetric either:
                 // let otherVel = leftV + rightV
-                let otherVel = currV
+                // let otherVel = currV
 
                 // But, we also need to calculate the inelastic collision results for the other columns, 
                 // otherwise we just gain speed over time.
@@ -198,9 +203,23 @@ class WaterColumn {
                     if collidedVel != 0 {
                         // print(collidedVel)
                     }
-                    let velChange = abs(collidedVel) - abs(xVel) 
-                    // column.verticalVelocity *= 1.05
-                    column.velocity.x = collidedVel * 0.2
+                    // let velChange = abs(collidedVel) - abs(xVel) 
+                    let velChange = -abs(otherVel)
+                    // Column 12 is the leftmost disturbed column, it and column 13 to its right
+                    // achieve a balance of xvel to yvel so that they both go to the right with half the speed 12 had originally.
+                    
+                    // Imagine the two columns like two balls that are chained together
+                    // If the left ball is struck into the right ball, it will push the right ball
+                    // The right ball will then tug on the left ball when the chain becomes taut
+                    // And the cycle repeats, so the balls end at similar speeds.
+                    // Maybe we don't want the balls to be chained together, or at least not very strongly?
+                    if 12 <= column.id && column.id <= 13 {
+                        // print(column.verticalVelocity)
+                        print(String(format: "#%d y vel change %5.3f x vel %5.3f", column.id, velChange, column.velocity.x))
+                        column.velocity.x = collidedVel
+                        Raylib.drawRectangle(Int32(column.position.x), Int32(column.bottom + 30), 
+                            Int32(WaterColumn.WIDTH), 30, Color.red)
+                    }
 
                     // column.verticalVelocity = 2 / (abs(column.velocity.x) + 1)
 
@@ -212,7 +231,7 @@ class WaterColumn {
                         // column.verticalVelocity = 2 / -(abs(column.velocity.x) + 1)
                     }
 
-                    return {
+                    if false {
                         // So the code below is symmetrical, just for testing purposes.
                         /*
                         column.left?.velocity.x += -9
@@ -254,6 +273,7 @@ class WaterColumn {
                             // print(column.left?.velocity.x)
                         }
                     }
+                    return {}
                 }
             /* Look at paper diagram for more info.
             Key points:

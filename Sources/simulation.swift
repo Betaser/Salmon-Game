@@ -21,7 +21,7 @@ class Simulation {
 
     // static let waterColumnCount = 29
     // static let disturbanceCount = 13
-    static let waterColumnCount = 29 * 6
+    static let waterColumnCount = 9 * 6
     static let disturbanceCount = 5 * 6
     var water: [WaterColumn] = []
     var counter: Int32
@@ -288,6 +288,11 @@ class Simulation {
             reinit()
             return
         }
+
+        // background of white to gray gradient top to bottom is nice
+        let topColor = Color(r: 230, g: 230, b: 230, a: 255)
+        let bottomColor = Color(r: 30, g: 30, b: 30, a: 255)
+        Raylib.drawRectangleGradientV(0, 0, screenWidth, screenHeight, topColor, bottomColor)
 
         // render verticalZero.
         let verticalZeroBuf: Int32 = 100
