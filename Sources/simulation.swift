@@ -289,6 +289,10 @@ class Simulation {
             return
         }
 
+        if Raylib.isKeyPressed(.space) {
+            WaterColumn.waveCollisionsEnabled = !WaterColumn.waveCollisionsEnabled
+        }
+
         // background of white to gray gradient top to bottom is nice
         let topColor = Color(r: 230, g: 230, b: 230, a: 255)
         let bottomColor = Color(r: 30, g: 30, b: 30, a: 255)

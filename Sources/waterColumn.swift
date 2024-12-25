@@ -13,6 +13,7 @@ class WaterColumn {
     static let WIDTH = 4 * 3
     static let HEIGHT = 200
     static let CRUSH_ENERGY_SAVED = 0.99
+    static var waveCollisionsEnabled = false
 
     unowned var left: WaterColumn? = nil 
     unowned var right: WaterColumn? = nil 
@@ -51,9 +52,10 @@ class WaterColumn {
     }
     var expectedCrushStartVelocity: Float64
     var id: Int32 = 0
+    var showHorz = true
     private var bottom: Float64
     private (set) var verticalZero: Float64
-    var restitution: Float64;
+    var restitution: Float64 = -99;
 
     deinit { refCount -= 1 }
 
@@ -65,7 +67,6 @@ class WaterColumn {
         color = Color.blue
         bottom = 0
         expectedCrushStartVelocity = 0
-        restitution = 0.9;
         wave = Wave() 
         reinit()
     }
@@ -79,15 +80,18 @@ class WaterColumn {
         color = Color.blue
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
+        Self.waveCollisionsEnabled = false
+        showHorz = true
+        restitution = 0.995
         disturbance = .freelyMoving
-            let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * WaterColumn.WIDTH)) / 2.0
-            let id = Int32((position.x - horzWaterBuf) / Float64(WaterColumn.WIDTH))
+            let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * Self.WIDTH)) / 2.0
+            let id = Int32((position.x - horzWaterBuf) / Float64(Self.WIDTH))
             self.id = id
             print(id)
     }
 
     func clone() -> WaterColumn {
-        var ret = WaterColumn(position: position)
+        let ret = WaterColumn(position: position)
         return ret
     }
 
@@ -156,7 +160,8 @@ class WaterColumn {
             }
 
             // blah long comments. Contains the massive brainstorming rambling paragraph
-            if true || isNewDip {
+            if WaterColumn.waveCollisionsEnabled {
+            // if true || isNewDip {
                 func inelasticCollision(restitution: Float64, v: Float64, colliderV: Float64) -> Float64 {
                     return (1 - restitution) / 2.0 * v + (1 + restitution) / 2.0 * colliderV
                 }
@@ -178,9 +183,26 @@ class WaterColumn {
                     }
                 }
                 */
-                let leftUsed = leftV * currV > 0 || leftV - currV > 0
-                let rightUsed = rightV * currV > 0 || rightV - currV < 0
-                let neighboringV = (leftUsed ? leftV : 0) + (rightUsed ? rightV : 0)
+                // Left/Right velocities are not used if: the column (l/r) does not push 
+                //  as much as the current velocity, or if the column (l/r) is moving in the wrong direction.
+                // let leftUsed = leftV * currV > 0 || leftV - currV > 0
+                // let rightUsed = rightV * currV > 0 || rightV - currV < 0
+                let leftUsed = 
+                    // colliding/pushing is no different.
+                    // obviously colliding case:
+                    (leftV > 0 && currV < 0) || 
+                    // overall pushing
+                    (leftV - currV > 0)
+                let rightUsed = 
+                    // colliding/pushing is no different.
+                    (rightV < 0 && currV > 0) ||
+                    // overall pushing
+                    (rightV - currV < 0)
+                // if we have a column that is "pulling", or the opposite of colliding with another column,
+                //  then use a fraction of the velocity.
+                let pullingFrac = 0.1
+                let neighboringV = (leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
+                                            rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)) * 1.00
 
                 let collidedVel = inelasticCollision(restitution: column.restitution, v: currV, colliderV: neighboringV)
                 // the two expr below are different.
@@ -192,12 +214,7 @@ class WaterColumn {
 
                 // But, we also need to calculate the inelastic collision results for the other columns, 
                 // otherwise we just gain speed over time.
-                let xVel = column.velocity.x
                 let verticalVel = column.verticalVelocity
-                var lv = column.left?.velocity.x ?? 0
-                var rv = column.right?.velocity.x ?? 0
-                // so if we have lv, rv = -3, 5, and otherVel = 2, then we should distribute them to be -1/3, 1/3
-                let factor = otherVel / (abs(lv) + abs(rv))
 
                 return {
                     if collidedVel != 0 {
@@ -213,65 +230,27 @@ class WaterColumn {
                     // The right ball will then tug on the left ball when the chain becomes taut
                     // And the cycle repeats, so the balls end at similar speeds.
                     // Maybe we don't want the balls to be chained together, or at least not very strongly?
-                    if 12 <= column.id && column.id <= 13 {
+                    if false && 12 <= column.id && column.id <= 15 {
                         // print(column.verticalVelocity)
-                        print(String(format: "#%d y vel change %5.3f x vel %5.3f", column.id, velChange, column.velocity.x))
-                        column.velocity.x = collidedVel
+                        if abs(column.velocity.x) > 0.0001 {
+                            print(String(format: "#%d y vel change %5.3f x vel %5.3f", column.id, velChange, column.velocity.x))
+                        }
                         Raylib.drawRectangle(Int32(column.position.x), Int32(column.bottom + 30), 
-                            Int32(WaterColumn.WIDTH), 30, Color.red)
+                            Int32(WaterColumn.WIDTH), 30 + column.id - 12, Color.red)
                     }
+                    column.velocity.x = collidedVel
 
                     // column.verticalVelocity = 2 / (abs(column.velocity.x) + 1)
 
-                    if (velChange < 0) {
+                    if velChange < 0 {
                         // print("change by \(velChange)")
                         // pow is not symmetrical maybe?
                         // column.verticalVelocity = verticalVel + -pow(-velChange, 0.4) * 0.5
-                        column.verticalVelocity = verticalVel + velChange * 0.5
                         // column.verticalVelocity = 2 / -(abs(column.velocity.x) + 1)
-                    }
 
-                    if false {
-                        // So the code below is symmetrical, just for testing purposes.
-                        /*
-                        column.left?.velocity.x += -9
-                        column.right?.velocity.x += 9
-                        */
-
-                        // the first two below things are not symmetric, but the else case works.
-
-                        // setting only left or only right in these bools aren't symmetric, but they should be.
-
-                        if !leftUsed || column.left == nil {
-                            if false && abs(velChange) > 10 {
-                            print("\(collidedVel) \(xVel)")
-                            print(column.verticalVelocity)
-                            }
-                            // it is not symmetric to set x to any value, dunno why.
-                            // this zeroes things out usually.
-                            // column.right?.velocity.x += otherVel
-                            // column.right?.velocity.x /= 999
-                            // column.right?.velocity.x -= 0.2;
-                            // below works for using f(abs(vel.x)) instead of collisions.
-                            // this is symmetric
-                            // column.right?.verticalVelocity += 1
-                        }
-                        if !rightUsed || column.right == nil {
-                            // column.left?.velocity.x += otherVel
-                            // column.left?.velocity.x /= 999
-                            // column.left?.velocity.x += 0.2;
-                            // column.left?.verticalVelocity += 1
-                        }
-                        // if column.left != nil && column.right != nil {
-                        // not symmetric in combination with the stuff above, even when the stuff above is by itself symmetric
-                        if !((!leftUsed || column.left == nil) || (!rightUsed || column.right == nil)) {
-                            // column.left?.velocity.x = lv + -9
-                            // column.right?.velocity.x = rv + 9
-                            // clearly otherVel and factor aren't calculated right; they need to be abs or else its not symmetric.
-                            column.left?.velocity.x = lv == 0 ? abs(otherVel) / 2 : lv * abs(factor)
-                            column.right?.velocity.x = rv == 0 ? -abs(otherVel) / 2 : rv * abs(factor)
-                            // print(column.left?.velocity.x)
-                        }
+                        // column.verticalVelocity = verticalVel + velChange * 0.15
+                        // less effective the more KE/PE we have?
+                        column.verticalVelocity = verticalVel + pow(0.95, abs(verticalVel) + abs(column.verticalZero - column.position.y)) * velChange
                     }
                     return {}
                 }
@@ -567,5 +546,10 @@ class WaterColumn {
     func render() {
         Raylib.drawRectangle(Int32(position.x), Int32(position.y), Int32(Self.WIDTH), Int32(bottom - position.y), color)
         Raylib.drawRectangleLines(Int32(position.x), Int32(position.y), Int32(Self.WIDTH), Int32(bottom - position.y), Color.yellow)
+
+        if showHorz {
+            let minHeight: Float64 = 30
+            Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20), Int32(Self.WIDTH - 2), Int32(20 * abs(velocity.x) + minHeight), Color.magenta)
+        }
     }
 }

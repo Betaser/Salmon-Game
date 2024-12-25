@@ -21,6 +21,8 @@ class WaterDisturbance {
     let columnCount: Int
     var range: Range<Float64>
 
+    static let VACUUM_SUM_FRAC = 1.0 / 1000
+
     init(columnCount: Int) {
         self.columnCount = columnCount
         range = Float64(WaterColumn.WIDTH / 2)..<Float64(
@@ -51,7 +53,9 @@ class WaterDisturbance {
 
             // tried time based, doesn't work any better.
             let velocity = (2 * WaterColumn.GRAVITY * height).squareRoot()
-            // column.crushedBy(amt: velocity)
+            column.crushedBy(amt: velocity)
+            // DISABLE TO JUST SEE HORZ STUFF
+
             // if we start at vertical zero with no velocity, this is true
             // column.expectedCrushStartVelocity = column.verticalVelocity
 
@@ -60,8 +64,6 @@ class WaterDisturbance {
             // let _ = -1.228559 * pow(waterDrag.startingVelocity, 0.9833912)
             let crushVel = -1.228559 * pow(velocity, 0.9833912)
             column.expectedCrushStartVelocity = crushVel
-            // SO WE CAN JUST SEE HORZ STUFF
-            column.crushedBy(amt: -2)
 
             // BUT also, define how x velocities get set 
             // (because they are what truly cause vertical force resulting in waves.)
@@ -73,8 +75,8 @@ class WaterDisturbance {
         columns.get(-1)!.disturbance = .atEdge
 
         let vacuumLedVel = columnHeights.reduce(0, { a, b in a + b })
-        columns.first!.velocity.x += vacuumLedVel / 1000
-        columns.get(-1)!.velocity.x += -vacuumLedVel / 1000
+        columns.first!.velocity.x += vacuumLedVel * Self.VACUUM_SUM_FRAC
+        columns.get(-1)!.velocity.x += -vacuumLedVel * Self.VACUUM_SUM_FRAC
 
         // slices are efficient views
         // startIndex != 0 because it is a slice.
