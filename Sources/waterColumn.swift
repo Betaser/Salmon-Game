@@ -5,15 +5,15 @@ import Raylib
 
 class WaterColumn {
     static let MASS = 4.5
-    static let SPRING_FACTOR = 0.045
+    static let SPRING_FACTOR = 0.095
     static let VERTICAL_ZERO = 300.0
-    static let GRAVITY = 0.045
+    static let GRAVITY = 0.105
     // static let WIDTH = 20
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
     static let WIDTH = 4 * 3
     static let HEIGHT = 200
     // static let CRUSH_ENERGY_SAVED = 0.99
-    static let CRUSH_ENERGY_SAVED = 0.93
+    static let CRUSH_ENERGY_SAVED = 0.95
     static var waveCollisionsEnabled = false
 
     unowned var left: WaterColumn? = nil 
@@ -161,7 +161,7 @@ class WaterColumn {
             }
 
             // What if we slow down the horizontal wave movement, obv fix this.
-            if WaterColumn.waveCollisionsEnabled && Simulation.DEBUG_COUNTER % 2 == 0 {
+            if WaterColumn.waveCollisionsEnabled && Simulation.DEBUG_COUNTER % 1 == 0 {
             // if true || isNewDip {
                 func inelasticCollision(restitution: Float64, v: Float64, colliderV: Float64) -> Float64 {
                     return (1 - restitution) / 2.0 * v + (1 + restitution) / 2.0 * colliderV
@@ -201,7 +201,7 @@ class WaterColumn {
                     (rightV - currV < 0)
                 // if we have a column that is "pulling", or the opposite of colliding with another column,
                 //  then use a fraction of the velocity.
-                let pullingFrac = 0.1
+                let pullingFrac = 0.4
                 let neighboringV = (leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
                                             rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)) * 1.00
 
@@ -545,8 +545,10 @@ class WaterColumn {
     }
 
     func render() {
-        Raylib.drawRectangle(Int32(position.x), Int32(position.y), Int32(Self.WIDTH), Int32(bottom - position.y), color)
-        Raylib.drawRectangleLines(Int32(position.x), Int32(position.y), Int32(Self.WIDTH), Int32(bottom - position.y), Color.yellow)
+        // It's kinda too big right now, make the vertical size smaller.
+        let V_SCALE = 0.3
+        Raylib.drawRectangle(Int32(position.x), Int32((1 - V_SCALE) * verticalZero + V_SCALE * position.y), Int32(Self.WIDTH), Int32(bottom - ((1 - V_SCALE) * verticalZero + V_SCALE * position.y)), color)
+        Raylib.drawRectangleLines(Int32(position.x), Int32((1 - V_SCALE) * verticalZero + V_SCALE * position.y), Int32(Self.WIDTH), Int32(bottom - ((1 - V_SCALE) * verticalZero + V_SCALE * position.y)), Color.yellow)
 
         if showHorz {
             let minHeight: Float64 = 30
