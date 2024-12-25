@@ -12,7 +12,8 @@ class WaterColumn {
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
     static let WIDTH = 4 * 3
     static let HEIGHT = 200
-    static let CRUSH_ENERGY_SAVED = 0.99
+    // static let CRUSH_ENERGY_SAVED = 0.99
+    static let CRUSH_ENERGY_SAVED = 0.93
     static var waveCollisionsEnabled = false
 
     unowned var left: WaterColumn? = nil 
@@ -159,8 +160,8 @@ class WaterColumn {
             }
             }
 
-            // blah long comments. Contains the massive brainstorming rambling paragraph
-            if WaterColumn.waveCollisionsEnabled {
+            // What if we slow down the horizontal wave movement, obv fix this.
+            if WaterColumn.waveCollisionsEnabled && Simulation.DEBUG_COUNTER % 2 == 0 {
             // if true || isNewDip {
                 func inelasticCollision(restitution: Float64, v: Float64, colliderV: Float64) -> Float64 {
                     return (1 - restitution) / 2.0 * v + (1 + restitution) / 2.0 * colliderV
@@ -248,9 +249,9 @@ class WaterColumn {
                         // column.verticalVelocity = verticalVel + -pow(-velChange, 0.4) * 0.5
                         // column.verticalVelocity = 2 / -(abs(column.velocity.x) + 1)
 
-                        // column.verticalVelocity = verticalVel + velChange * 0.15
+                        column.verticalVelocity = verticalVel + velChange * 0.15
                         // less effective the more KE/PE we have?
-                        column.verticalVelocity = verticalVel + pow(0.95, abs(verticalVel) + abs(column.verticalZero - column.position.y)) * velChange
+                        // column.verticalVelocity = verticalVel + 20 / (20 + abs(verticalVel) + abs(column.verticalZero - column.position.y)) * velChange
                     }
                     return {}
                 }

@@ -25,6 +25,7 @@ class Simulation {
     static let disturbanceCount = 5 * 6
     var water: [WaterColumn] = []
     var counter: Int32
+    static var DEBUG_COUNTER: Int32 = 0
     var simSpeed = 0.0
     var leftoverSpeed = 0.0
     var inputs: Inputs = Inputs(isCrush: false, isSuspend: false, ranWaterDragSim: false)
@@ -310,6 +311,7 @@ class Simulation {
         }
         // debugging
 
+        Self.DEBUG_COUNTER = counter
         counter += 1
         Raylib.drawText("Simulation counter: \(counter)", 100, 100, 20, Color.darkGreen)
         Raylib.drawText("Simulation Speed: \(String(format: "%.4f", simSpeed))", screenWidth - 300, 100, 20, Color.darkGreen)

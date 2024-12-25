@@ -21,7 +21,7 @@ class WaterDisturbance {
     let columnCount: Int
     var range: Range<Float64>
 
-    static let VACUUM_SUM_FRAC = 1.0 / 1000
+    static let VACUUM_SUM_FRAC = 1.0 / 400
 
     init(columnCount: Int) {
         self.columnCount = columnCount
@@ -36,7 +36,7 @@ class WaterDisturbance {
                 xYFunction: { [unowned self] in 
                     let center = (range.upperBound - range.lowerBound) / 2
                     let normalizedX = ($0 - center) / ((range.upperBound - range.lowerBound) / 2)
-                    return (WaterColumn.VERTICAL_ZERO - 100) * (1 - pow(normalizedX, 2))
+                    return (WaterColumn.VERTICAL_ZERO - 100) * (1 - pow(normalizedX, 2)) * 1.5
                 }
             )
         }
@@ -75,8 +75,13 @@ class WaterDisturbance {
         columns.get(-1)!.disturbance = .atEdge
 
         let vacuumLedVel = columnHeights.reduce(0, { a, b in a + b })
-        columns.first!.velocity.x += vacuumLedVel * Self.VACUUM_SUM_FRAC
-        columns.get(-1)!.velocity.x += -vacuumLedVel * Self.VACUUM_SUM_FRAC
+        // This starts from the ends.
+        // columns.first!.velocity.x += vacuumLedVel * Self.VACUUM_SUM_FRAC
+        // columns.get(-1)!.velocity.x += -vacuumLedVel * Self.VACUUM_SUM_FRAC
+        // This starts from the center.
+        let mid = (columns.count - 1) / 2
+        columns.get(mid)?.velocity.x += vacuumLedVel * Self.VACUUM_SUM_FRAC
+        columns.get(mid + 1)?.velocity.x += -vacuumLedVel * Self.VACUUM_SUM_FRAC
 
         // slices are efficient views
         // startIndex != 0 because it is a slice.
