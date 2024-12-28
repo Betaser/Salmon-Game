@@ -21,7 +21,7 @@ class Simulation {
 
     // static let waterColumnCount = 29
     // static let disturbanceCount = 13
-    static let waterColumnCount = 9 * 6
+    static let waterColumnCount = 19 * 6
     static let disturbanceCount = 5 * 6
     var water: [WaterColumn] = []
     var counter: Int32
@@ -138,10 +138,10 @@ class Simulation {
 
         var waveData: [(Float64, Float64)] = []
         for col in water {
-            waveData.append((col.left?.velocity.x ?? 0, col.right?.velocity.x ?? 0))
+            waveData.append((col.left?.horzVelocity ?? 0, col.right?.horzVelocity ?? 0))
         }
-                // let leftV = column.left?.velocity.x ?? 0
-                // let rightV = column.right?.velocity.x ?? 0
+                // let leftV = column.left?.horzVelocity ?? 0
+                // let rightV = column.right?.horzVelocity ?? 0
         do {
             var allClosures: [UpdateClosures] = []
             var maxIndices: [UInt] = []
@@ -228,48 +228,6 @@ class Simulation {
                     water[i].disturbance = d        
                 }
             }
-
-            /*
-            var start = -1
-            var startCol = water[0]
-            var end = -1
-            var endCol = water[0]
-
-            for i in 0..<water.count {
-                if let d = disturbances[i] {
-                    water[i].disturbance = d
-                }
-
-                if water[i].disturbance == .atEdge {
-                    if start == -1 {
-                        start = i
-                        startCol = water[i]
-                    } else if end == -1 {
-                        end = i
-                        endCol = water[i]
-                    }
-                }
-            }
-
-            let newFuckYou = start != -1 && end != -1 && start == water.count - end - 1
-
-            if newFuckYou {
-                if let startWave = startCol.wave, let endWave = endCol.wave {
-                print("diffs \(startCol.verticalVelocity - endCol.verticalVelocity) \(startWave.lastEdgeVel - endWave.lastEdgeVel)")
-                }
-            }
-
-            // check for shitty frame
-            if newFuckYou && !Self.fuckYou {
-                print("fuck you.")
-                print(disturbances)
-                for s in toPrint {
-                    print(s)
-                }
-                print(alterNum)
-                Self.fuckYou = true
-            }
-            */
         }
 
 
@@ -279,7 +237,7 @@ class Simulation {
         let halfish = Int((water.count - N) / 2)
         for (i, column) in water[halfish..<water.count - halfish].enumerated() {
             // text += "#\(halfish + i) Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
-            text += "#\(halfish + i) x vel: \(String(format: "%.4f", column.velocity.x))\n"
+            text += "#\(halfish + i) x vel: \(String(format: "%.4f", column.horzVelocity))\n"
         }
         return (text, screenWidth - 300, 175, 20, Color.darkGreen)
     }
@@ -316,7 +274,7 @@ class Simulation {
         Raylib.drawText("Simulation counter: \(counter)", 100, 100, 20, Color.darkGreen)
         Raylib.drawText("Simulation Speed: \(String(format: "%.4f", simSpeed))", screenWidth - 300, 100, 20, Color.darkGreen)
         // controls
-        Raylib.drawText("Controls: \nR to reset simulation\nD to crush water\nS to suspend water\nW to test water drag", 100, 150, 20, Color.darkGreen)
+        Raylib.drawText("Controls: \nR to reset simulation\nD to crush water\nS to suspend water\nW to test water drag\nSpace to toggle wave physics", 100, 150, 20, Color.darkGreen)
 
         // debugging atEdge stuff
         var atEdges: [WaterColumn] = []

@@ -4,16 +4,18 @@ import Raylib
 // could consider the center as the position
 
 class WaterColumn {
+    static let DEFAULT_RESTITUTION = 0.98
     static let MASS = 4.5
     static let SPRING_FACTOR = 0.095
     static let VERTICAL_ZERO = 300.0
     static let GRAVITY = 0.105
     // static let WIDTH = 20
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
-    static let WIDTH = 4 * 3
+    static let WIDTH = 2 * 3
     static let HEIGHT = 200
     // static let CRUSH_ENERGY_SAVED = 0.99
     static let CRUSH_ENERGY_SAVED = 0.95
+    static let HORZ_TO_VERT_FACTOR = 0.15
     static var waveCollisionsEnabled = false
 
     unowned var left: WaterColumn? = nil 
@@ -43,6 +45,14 @@ class WaterColumn {
     var originalPosition: Vector2
     // up or down, has a similar effect to energy.
     var velocity = Vector2(x: 0, y: 0)
+    var horzVelocity: Float64 {
+        set(val) {
+            velocity.x = val
+        }
+        get {
+            return velocity.x
+        }
+    }
     var verticalVelocity: Float64 {
         set(val) {
             velocity.y = val
@@ -76,19 +86,19 @@ class WaterColumn {
         position = originalPosition.clone()
         verticalVelocity = 0
         verticalZero = Self.VERTICAL_ZERO
-        velocity.x = 0
+        horzVelocity = 0
         velocity.y = 0
         color = Color.blue
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
         Self.waveCollisionsEnabled = false
         showHorz = true
-        restitution = 0.995
+        restitution = Self.DEFAULT_RESTITUTION 
         disturbance = .freelyMoving
-            let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * Self.WIDTH)) / 2.0
-            let id = Int32((position.x - horzWaterBuf) / Float64(Self.WIDTH))
-            self.id = id
-            print(id)
+
+        let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * Self.WIDTH)) / 2.0
+        let id = Int32((position.x - horzWaterBuf) / Float64(Self.WIDTH))
+        self.id = id
     }
 
     func clone() -> WaterColumn {
@@ -133,7 +143,7 @@ class WaterColumn {
             //  so that the edge columns don't seem out of place. (naive assumption)
             // just code it all inline here, why not.
 
-            if false {
+            /*
             if column.disturbance == .beingDisturbed || 
                column.disturbance == .atEdge ||
                column.disturbance == .freelyMoving {
@@ -158,7 +168,7 @@ class WaterColumn {
                     }
                 }
             }
-            }
+            */
 
             // What if we slow down the horizontal wave movement, obv fix this.
             if WaterColumn.waveCollisionsEnabled && Simulation.DEBUG_COUNTER % 1 == 0 {
@@ -168,12 +178,12 @@ class WaterColumn {
                 }
 
                 // deal with columns who are next to nothing.
-                let leftV = column.left?.velocity.x ?? 0
-                let rightV = column.right?.velocity.x ?? 0
+                let leftV = column.left?.horzVelocity ?? 0
+                let rightV = column.right?.horzVelocity ?? 0
                 // let leftV = data.0
                 // let rightV = data.1
 
-                let currV = column.velocity.x
+                let currV = column.horzVelocity
                 /*
                 // if we are colliding or pushing, do include the velocity in neighboringV
                 if (leftV * currV > 0) {
@@ -202,8 +212,13 @@ class WaterColumn {
                 // if we have a column that is "pulling", or the opposite of colliding with another column,
                 //  then use a fraction of the velocity.
                 let pullingFrac = 0.4
-                let neighboringV = (leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
-                                            rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)) * 1.00
+                let neighboringVWithPull = leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
+                                   rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)
+                let neighboringVNoPull = leftV * (leftUsed ? 1.0 : 0.0) + 
+                                         rightV * (rightUsed ? 1.0 : 0.0)
+                // This is the money maker. Experiment with this more, it propagates waves forward.
+                let neighboringV = abs(neighboringVWithPull) > abs(neighboringVNoPull) 
+                                   ? neighboringVWithPull : neighboringVNoPull
 
                 let collidedVel = inelasticCollision(restitution: column.restitution, v: currV, colliderV: neighboringV)
                 // the two expr below are different.
@@ -231,27 +246,20 @@ class WaterColumn {
                     // The right ball will then tug on the left ball when the chain becomes taut
                     // And the cycle repeats, so the balls end at similar speeds.
                     // Maybe we don't want the balls to be chained together, or at least not very strongly?
-                    if false && 12 <= column.id && column.id <= 15 {
-                        // print(column.verticalVelocity)
-                        if abs(column.velocity.x) > 0.0001 {
-                            print(String(format: "#%d y vel change %5.3f x vel %5.3f", column.id, velChange, column.velocity.x))
-                        }
-                        Raylib.drawRectangle(Int32(column.position.x), Int32(column.bottom + 30), 
-                            Int32(WaterColumn.WIDTH), 30 + column.id - 12, Color.red)
+                    if Simulation.DEBUG_COUNTER % 3 == 0 {
+                        column.horzVelocity = collidedVel
                     }
-                    column.velocity.x = collidedVel
 
-                    // column.verticalVelocity = 2 / (abs(column.velocity.x) + 1)
+                    // decay of horzVelocity that is larger for columns that are higher up
+                    let aboveZero = column.verticalZero - column.position.y
+                    if aboveZero > 0 {
+                        column.horzVelocity *= max(0.9, 1 - aboveZero / 3000.0)
+                    }
+
 
                     if velChange < 0 {
                         // print("change by \(velChange)")
-                        // pow is not symmetrical maybe?
-                        // column.verticalVelocity = verticalVel + -pow(-velChange, 0.4) * 0.5
-                        // column.verticalVelocity = 2 / -(abs(column.velocity.x) + 1)
-
-                        column.verticalVelocity = verticalVel + velChange * 0.15
-                        // less effective the more KE/PE we have?
-                        // column.verticalVelocity = verticalVel + 20 / (20 + abs(verticalVel) + abs(column.verticalZero - column.position.y)) * velChange
+                        column.verticalVelocity = verticalVel + velChange * HORZ_TO_VERT_FACTOR
                     }
                     return {}
                 }
@@ -446,7 +454,6 @@ class WaterColumn {
         let disturbanceThreshold = 2.0
         // dip will naturally settle around 4.5!
 
-        var change = false
         if abs(verticalVelocity) < disturbanceThreshold && 
            abs(dip - 4.5) < 1.0 &&
            disturbance == .atEdge {
@@ -458,31 +465,14 @@ class WaterColumn {
                     return n1.disturbance == .freelyMoving && n2.disturbance == .beingDisturbed
                 }
                 if disturbNeighbors(c1, c2) {
-                    if let r = right {
-                        _ = r
-                        // print("changing something to atEdge \(r.position.x)")
-                        change = true
-                    }
                     ret.2 = .atEdge
                 }
                 if disturbNeighbors(c2, c1) {
-                    if let l = left {
-                        _ = l
-                        // print("changing something to atEdge \(l.position.x)")
-                        change = true
-                    }
                     ret.0 = .atEdge
-                }
-
-                if !disturbNeighbors(c1, c2) && !disturbNeighbors(c2, c1) {
-                    // print("tf????? \(c1.disturbance) \(disturbance) \(c2.disturbance)")
                 }
             }
 
             ret.1 = .freelyMoving
-        }
-        if change {
-            // print("return \(ret)")
         }
 
         return ret
@@ -552,7 +542,13 @@ class WaterColumn {
 
         if showHorz {
             let minHeight: Float64 = 30
-            Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20), Int32(Self.WIDTH - 2), Int32(20 * abs(velocity.x) + minHeight), Color.magenta)
+            if horzVelocity > 0 {
+                // green above bottom - 20
+                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20 - 20 * horzVelocity), Int32(Self.WIDTH - 2), Int32(20 * abs(horzVelocity) + minHeight), Color.lime)
+            } else {
+                // magenta below bottom - 20
+                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20), Int32(Self.WIDTH - 2), Int32(20 * -horzVelocity + minHeight), Color.magenta)
+            }
         }
     }
 }

@@ -71,7 +71,6 @@ for column in water {
 }
 */
 
-if true {
 // to keep ref counted objects in a finite scope, so that the proper number can be printed at the end of the program
 do {
     let simulation = Simulation()
@@ -90,4 +89,3 @@ do {
 
 Raylib.closeWindow()
 print("refs: \(refCount)")
-}
