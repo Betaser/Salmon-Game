@@ -4,12 +4,15 @@ import Raylib
 
 let screenWidth: Int32 = 1280
 let screenHeight: Int32 = 720
-let FPS = 60
+let FPS: Int32 = 60
 
 var refCount = 0
 
+// Means no logging from Raylib itself.
+Raylib.setTraceLogLevel(TraceLogLevel.none)
+
 Raylib.initWindow(screenWidth, screenHeight, "Salmon Game")
-Raylib.setTargetFPS(60)
+Raylib.setTargetFPS(FPS)
 
 /*
 var water: [WaterColumn] = []
@@ -77,13 +80,15 @@ do {
 
     while !Raylib.windowShouldClose {
         Raylib.beginDrawing()
+        Raylib.clearBackground(Color.white)
 
         simulation.update()
 
-        Raylib.clearBackground(Color.white)
         Raylib.drawFPS(10, 10)
         Raylib.drawText("refs: \(refCount)", screenWidth - 100, screenHeight - 30, 2, Color.black)
         Raylib.endDrawing()
+
+        simulation.screenshotStuff()
     }
 }
 

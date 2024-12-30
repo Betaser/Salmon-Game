@@ -31,6 +31,13 @@ class Simulation {
     var inputs: Inputs = Inputs(isCrush: false, isSuspend: false, ranWaterDragSim: false)
     let disturbance = WaterDisturbance(columnCount: disturbanceCount)
 
+    var frameByFrame = false
+    var screenshot = Texture()
+    var image = Image()
+    var edgeInfo = ""
+    var doScreenshotStuff = true
+    var screenshotDelay = 1
+
     init() {
         counter = 0
         reinit()
@@ -65,6 +72,7 @@ class Simulation {
         let halfOffset = (Self.waterColumnCount - Self.disturbanceCount) / 2
         water[halfOffset].disturbance = .atEdge
         water[Self.waterColumnCount - halfOffset - 1].disturbance = .atEdge
+        frameByFrame = false
     }
 
     deinit {
@@ -243,6 +251,12 @@ class Simulation {
     }
     
     func update() {
+        doScreenshotStuff = true
+        if Raylib.isKeyPressed(.letterT) {
+            frameByFrame = !frameByFrame
+        }
+
+        // frameByFrame = Raylib.isKeyDown(.letterT)
         if Raylib.isKeyPressed(.letterR) {
             reinit()
             return
@@ -252,6 +266,22 @@ class Simulation {
             WaterColumn.waveCollisionsEnabled = !WaterColumn.waveCollisionsEnabled
         }
 
+        if frameByFrame {
+            defer {
+                Raylib.drawText("Frame by frame mode on", 100, 70, 20, Color.darkBlue)
+            }
+            if !Raylib.isKeyPressed(.right) {
+                Raylib.drawTexture(screenshot, 0, 0, Color.white)
+                doScreenshotStuff = screenshotDelay == 1
+                if screenshotDelay > 0 {
+                    screenshotDelay -= 1
+                }
+                return
+            }
+            screenshotDelay = 1
+            doScreenshotStuff = false
+        }
+        
         // background of white to gray gradient top to bottom is nice
         let topColor = Color(r: 230, g: 230, b: 230, a: 255)
         let bottomColor = Color(r: 30, g: 30, b: 30, a: 255)
@@ -262,7 +292,17 @@ class Simulation {
         Raylib.drawRectangle(verticalZeroBuf, Int32(WaterColumn.VERTICAL_ZERO), screenWidth - 2 * verticalZeroBuf, 5, Color.red)
         Raylib.drawRectangle(verticalZeroBuf, 100, screenWidth - 2 * verticalZeroBuf, 5, Color.orange)
 
-        manageSimSpeed()
+        if frameByFrame {
+            inputs.shutoffAll()
+            if Raylib.isKeyDown(.letterD) {
+                inputs.isCrush = true
+            }
+
+            let text: (String, Int32, Int32, Int32, Color) = manageWater(isCrush: inputs.isCrush, isSuspend: inputs.isSuspend)
+            Raylib.drawText(text.0, text.1, text.2, text.3, text.4)
+        } else {
+            manageSimSpeed()
+        }
 
         for column in water {
             column.render()
@@ -274,7 +314,7 @@ class Simulation {
         Raylib.drawText("Simulation counter: \(counter)", 100, 100, 20, Color.darkGreen)
         Raylib.drawText("Simulation Speed: \(String(format: "%.4f", simSpeed))", screenWidth - 300, 100, 20, Color.darkGreen)
         // controls
-        Raylib.drawText("Controls: \nR to reset simulation\nD to crush water\nS to suspend water\nW to test water drag\nSpace to toggle wave physics", 100, 150, 20, Color.darkGreen)
+        Raylib.drawText("Controls: \nR to reset simulation\nD to crush water\nS to suspend water\nW to test water drag\nSpace to toggle wave physics\nT to toggle frame by frame analysis", 100, 150, 20, Color.darkGreen)
 
         // debugging atEdge stuff
         var atEdges: [WaterColumn] = []
@@ -293,5 +333,13 @@ class Simulation {
         }
         Raylib.drawText("edge info: \(edgeInfo)", 100, screenHeight - 100, 20, Color.black)
     }
-    var edgeInfo = ""
+
+    func screenshotStuff() {
+        if doScreenshotStuff {
+            Raylib.unloadImage(image)
+            Raylib.unloadTexture(screenshot)
+            image = Raylib.loadImageFromScreen()
+            screenshot = Raylib.loadTextureFromImage(image)
+        }
+    }
 }

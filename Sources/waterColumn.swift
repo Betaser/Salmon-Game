@@ -6,7 +6,8 @@ import Raylib
 class WaterColumn {
     static let DEFAULT_RESTITUTION = 0.98
     static let MASS = 4.5
-    static let SPRING_FACTOR = 0.095
+    // static let SPRING_FACTOR = 0.095
+    static let SPRING_FACTOR = 0.045
     static let VERTICAL_ZERO = 300.0
     static let GRAVITY = 0.105
     // static let WIDTH = 20
@@ -209,18 +210,49 @@ class WaterColumn {
                     (rightV < 0 && currV > 0) ||
                     // overall pushing
                     (rightV - currV < 0)
+
+                // TODO: Figure out how to propagate a wave one frame at a time. Currently, only the frontmost is kept.
+                // Note: Doesn't a horizontal wave that is bigger to the left and going to the right have to flatten into a rectangle?
+                // This has not happened in any of my attempts so far.
+                // A more reassuring step to complete is that we need the following behavior to be simulated:
+                /*
+                1. The column in the center is compressed on both sides, and wants to go upwards
+                2. The column in the center is kept in a squished state, until the columns next to it are not strong enough to keep it like that
+                3. The column in the center would rather unsquish itself than go upwards
+                4. All columns can act like the center column
+                ???. Does squish affect the width of columns? We would then say the following:
+                    - Analyze A B C columns next to each other, where A and C are B's left and right.
+                     B expands to even out the right half of A and the left half of C.
+                    - Column widths and positions don't vary from the left and right of the unsquished columns (which makes sense)
+
+                It'll be something like:
+                - Columns have a squish state amount stored on themselves
+                - Squish replaces horizontal velocity
+                - Columns either squish more if the sum of the left and right columns press into it strongly enough,
+                 otherwise they impart the difference on the left and right columns
+                - Columns which are more squished are more resilient to being squished more
+                - Columns gain vertical velocity only when they are squished more than the previous frame
+                */
+
                 // if we have a column that is "pulling", or the opposite of colliding with another column,
                 //  then use a fraction of the velocity.
-                let pullingFrac = 0.4
+                let pullingFrac = 0.1
+                // When horizontal waves propagate against one another, if pullingFrac is too small then the edge waves go super high.
                 let neighboringVWithPull = leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
                                    rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)
+                // This is the money maker. Experiment with this more, it propagates waves forward.
+                // let neighboringV = neighboringVWithPull
+
+                /*
                 let neighboringVNoPull = leftV * (leftUsed ? 1.0 : 0.0) + 
                                          rightV * (rightUsed ? 1.0 : 0.0)
-                // This is the money maker. Experiment with this more, it propagates waves forward.
                 let neighboringV = abs(neighboringVWithPull) > abs(neighboringVNoPull) 
-                                   ? neighboringVWithPull : neighboringVNoPull
+                                 ? neighboringVWithPull : neighboringVNoPull
+                */
 
-                let collidedVel = inelasticCollision(restitution: column.restitution, v: currV, colliderV: neighboringV)
+                let neighboringV = leftV * (leftUsed ? 1 : 0) + rightV * (rightUsed ? 1 : 0)
+
+                let collidedVel = inelasticCollision(restitution: 0, v: currV, colliderV: neighboringV)
                 // the two expr below are different.
                 let otherVel = currV + neighboringV - collidedVel
                 // let otherVel = inelasticCollision(v: neighboringV, colliderV: currV)
@@ -240,13 +272,9 @@ class WaterColumn {
                     let velChange = -abs(otherVel)
                     // Column 12 is the leftmost disturbed column, it and column 13 to its right
                     // achieve a balance of xvel to yvel so that they both go to the right with half the speed 12 had originally.
-                    
-                    // Imagine the two columns like two balls that are chained together
-                    // If the left ball is struck into the right ball, it will push the right ball
-                    // The right ball will then tug on the left ball when the chain becomes taut
-                    // And the cycle repeats, so the balls end at similar speeds.
-                    // Maybe we don't want the balls to be chained together, or at least not very strongly?
-                    if Simulation.DEBUG_COUNTER % 3 == 0 {
+
+                    // Controls how fast the wave propagates. Slower = smaller waves, which we want.
+                    if Simulation.DEBUG_COUNTER % 5 == 0 {
                         column.horzVelocity = collidedVel
                     }
 
@@ -270,169 +298,7 @@ class WaterColumn {
                 i. v1 x velocity of the current column
                 ii. v2 x velocity of the sum of the neighboring columns, with rules on "pushing" and "colliding"
             3. After finding the final x velocity, if it is less than the prev frame's, turn that into vertical velocity
-
-            Screw the stuff below
             */
-
-            /*
-            Latest concerns:
-            I assumed that water columns collide into each other equally into a middle column, but this need not be the case. 
-            What about two water columns next to each other than get sent into each other?
-            h:  2  0     0  2
-            hv: >> >>> <<< <<
-                    A   B
-            Call the two central columns A and B.
-            A and B have relative velocities of the following.
-            For A, 2 - 3 = -1 (1 to the left) on its left, and -3 - 3 = -6 (6 to the left) on its right. 
-            Take the difference and absolute value it and we get |-1 - -6| = 5. But, we should instead just do |2 - -3| = 5.
-            For B, we do |-3 - 2| = 5.
-            We conclude that we take the magnitude of their energy and set vertical velocity to a function of that.
-            On the other hand, the resulting x velocity of the water column should be the sum plus the current x velocity.
-            For A: 2 + -3 + 3 = 2
-            For B: 3 + -2 - 3 = -2
-            Therefore, we get
-            h:  2 f(5)  f(5) 2
-            hv: >> >>    << <<
-                    A    B
-            But, that assumed the columns surrounding A and B did not change. We expect that they lost some energy.
-            Therefore there can be a simple energy decay for the water x velocity. 
-            I think the higher the water is, the more percentage of x velocity it loses. 
-
-            However, the more important example to look at is this:
-            0 >>> > <   ->    0  > >>> <
-            a  b  c d         a  b  c  d
-            Intuitively, we can see that b transferred most of its x velocity into c. c gained b + d = 2 velocity.
-            b would be calculated as 0 + 1 + 3 = 4 velocity, but this makes no sense. We reject that idea.
-            We therefore accept the outcome of b imparting its energy into c.
-            To achieve this, we can go from left to right or right to left, and make sure we get the same result.
-
-            Left to right case:
-            We first come across the column b. It has a higher velocity than that to its left and right.
-            Here, apply elastic headon collision formula.
-            Then, vb = 3, vc = -1
-                  v'b = vc, v'c = vb (literally just a swap)
-            Ex:
-            0 >>> < <   ->    0  < >>> <
-            a  b  c d         a  b  c  d
-            We notice b 
-
-            NOTE however, these interactions should only kick in after the first wave from the initial disturbance.
-            */
-
-            /*
-            I honestly kind of forget what I was saying, though I'm sure when I find my diagrams I'll remember.
-            However, let's just try deriving a new strategy, why not.
-            So, we like the idea that the impulse of some imaginary object pushing water down causes everything to follow.
-            Okay, well I believe that in real life, the water will be forced to run into itself around the object as the object sinks far enough. And we remember that we desire for the first peak to be a simple spring-based and gravity-affected trajectory. 
-            After such behavior, let's consider what occurs after this peak. So, we do have to define when weird other interactions besides springs and gravity matter. (TODO)
-            But suppose we have figured out how to define the instances in which other interactions affect trajectories.
-            For simplicity's sake, perhaps let's imagine an object that is causing the splash as being a super thin disk. I mean, for a salmon's tail this is reasonable. 
-            Then we can know that the sudden vacuum created by the slap of the tail accelerating water downards should cause water that was the to left and right of the water displaced to flow inwards. What happens then?
-            Well we know that the first column is about as wide at the base as the object that caused such a thing to occur. Subsequent peaks should be thinner, according to real life.
-            Then to mimic this, as water crashes into itself side-on, it should probably yeet upwards. This is because it can't go downwards, and it is being compressed from the sides. 
-            Suppose we take the first instance of a little bit of water crashing into itself. We can say it crashes into itself within one location, so one column gets excited.
-            The excited column yeets upwards. On the next frame, the column gets compressed on the left and right again, but less so, since energy was lost. 
-            The one column gets compressed again even more, and the left and right columns get compressed themselves, so they should yeet up. But how is this possible to calculate? 
-            Exhibit A:
-            Columns represented under the ________ representing vertical zero.
-            Height represented with h: row and numbers on top of each column.
-            horizontal velocity with >>>> <<<<
-
-            h:  +0 +1 +3 +1 +0
-            hv: >>>        <<<
-            ____-2 -1 +0 +1 +2____
-
-            h:  +0 +2 +5 +2 +0
-            hv: >>          <<
-            ____-2 -1 +0 +1 +2____
-
-            Of course this example is of symmetric, odd-numbered column disturbance, which is the design which I am targeting.
-            Note that the relative velocity of the peak column is massive from the right and left. It goes from +0 +0 +0 (x vel of left column, x vel of it, x vel of right column) to +5 +0 +5 for example.
-            For the columns next to it, take the left column for example. It goes from +0 +3 +0 to +3 +3 +0 as the vacuum pulls the columns that are on the edge of the disturbance move.
-            (Here, note that even though the edge of the disturbance moves inwards, we follow the edge column, so it goes from +7 to +3 velocity.) (Also note that there has to be some intermediate column "created" in a sense, since the edge moves but no gap is created.)
-            Well, eventually it collides with the edge coming from the other side. This frame looks like this:
-            +3 +3 |collision here!| -3 -3
-            On the next frame, it turns into 
-            +3 +1 |collision here!| -1 -3
-            The center column still has no velocity, but we can see that the columns which just gave the center column energy now have less x velocity. They now have relative velocity, and are being slightly compressed.
-            Therefore, they should get some excitement upwards. And the process will lead to some kind of bell curve I have to guess.
-            
-            Okay, then we should return to asking when this comes into play. And I think the answer is when water is below verticalZero, but upon the fish tail slapping originally, we pretend some length of an object is passing through and stops this interaction from occuring.
-            */
-
-            /*
-            https://theconversation.com/curious-kids-how-do-ripples-form-and-why-do-they-spread-out-across-the-water-120308
-            Water is also made of molecules. But during a ripple, the water molecules don’t move away from the rock, as you might expect. 
-            They actually move up and down. When they move up, they drag the other molecules next to them up – 
-            then they move down, dragging the molecules next to them down too.
-            */
-
-            // with the above theory, let's try to use it
-            // How does the differences in height and verticalVelocities affect verticalVelocity?
-            //  If it works like a spring, we only care about the difference in height.
-            // When do we use the differences in height to affect verticalVelocity?
-            //  Ramblings: We want to still converse the existing line fit strategy for the peak wave. 
-            //  Therefore, we want the peak wave to be unaffected.
-            //  Ans: When the water column we want to change the verticalVelocity of goes underwater 
-            //   (the difference will be zero, given that we make sure to update waterColumns AFTER we calculate their next states)
-            // IMPORTANT BEHAVIOR: How to move waves in a propagating fashion?
-            //  Ramblings/Ans: Say a wave propagates to the right. How is the achievable?
-            //   A wave say is moving upwards. It pulls waves from the right up, but it would also pull waves from the left up.
-            //   How can this be? Well, say we have three sections, the left, the middle, and the right.
-            //   The waves from the left should be falling, and the waves from the right rising perfectly cancels it all out
-            //   Okay, so then the waves on the left has its speed killed, the waves in the middle keeps rising, 
-            //    and the waves on the right are being pulled up slowly. This achieves the effect we are looking for.
-            //   The width of the wave is based on how the pulling up algorithm behaves.
-            // MORE NOTES
-            //  The peak wave should not be at the edge, even if the edge is presumably exciting waves outwards from it.
-            //  However, the should first try to produce natural waves before we try to make the edge spawn waves in a "nice" shape.
-
-            // TODO reread this thing
-            // Final question; does the aforementioned important behavior behavior match with our desire for peak wave to be unaffected?
-            //  Ramblings: For a wave that is resting, a wave next to it exciting it can make the peak wave unaffected if the rest requirement
-            //   is a function of the speed of the wave. We still need to achieve the wave propagation deletes its own affect behind it.
-            //   To achieve this, we want to at some point kill columns like this 
-            //    (look at the left column, the middle column is peaking, and the right column has not had much time to rise yet) .:_
-            //   In that diagram, the left column has movement very similar to the middle column. Real life indicates that when 
-            //    the left column hits the water, it loses all its verticalVelocity.
-            //   This can be achieved how?
-            //    Idea: The left column and the right column at some point will be moving in opposite directions at some point. 
-            //    This sounds like turbulence, and probably kills verticalVelocity.
-            //   To account for a variety of propagation times (which should be differences in periods of wave rise behavior), 
-            //    we want to generalize turbulence as a concept.
-            //   Let's say that yes, any time of moving in opposite direction = take difference and kill column by that.
-            //   Except that's not right, since the instant two columns move in opposite directions, the one that is rebounding has ~= 0 velocity.
-            //   Therefore, we actually take the difference of two columns moving in opposite directions where one column has pent up energy.
-            //    corresponding to how far below verticalZero it has gotten to.
-            //   NO, we always make a column rebound with energy based on the difference between the columns it is next to.
-            //   But to do this, we either look at the column to the right and left, and have leader columns at the edge of peak waves,
-            //    or we have a direction to a propagating wave (requires solving the interaction of two colliding waves from different directions).
-            //    Having leader columns should be simpler, but the reduction of leader columns is a weird idea
-            //    Once a column has the difference taken out of it, we kill the verticalVelocity. It is possible that the distance below 
-            //     verticalZero still causes interesting interactions.
-            //    We use the estimator for determining how the pent up energy works.
-            //    Except that there can be a column that just is rebounding but the other column has a lot of verticalVelocity and 
-            //     distance below verticalZero.
-            //    This means we have to somehow add these factors together, try using a simpler algorithm instead of a curve fit one.
-            //   Okay, do we apply this to one column at a time?
-            //   Yes, that should work for every column to propagate the wave.
-            //   Finally, does this not interfere with peak wave behavior?
-            //   We apply this opposite direction concept to a wave that is falling. Therefore yeah, that should work for a resting columns situation.
-            //  Ans: THAT is how we want the wave propagation function to operate.
-
-            // SCREW THIS PROPAGATING WAVES AS A CONCEPT BELOW
-            // x velocity is different than just verticalVelocity and height.
-            // I'll try having just propagating horizontal waves outwards from disturbances.
-            // The waves lose energy over time and by passing thru columns that have vertical velocity.
-
-            // How do propagating horizontal waves affect verticalVelocity?
-            //  The more verticalVelocity a wave has, the more horizontal waves add to the verticalVelocity, and the more x velocity is taken away.
-            // How fast does x velocity propagate?
-            //  Idea: Instantly, once or slightly less often per frame for ease of calculation
-            //  Idea: 
-            // How do waves lose x velocity?
-            //  Idea: It slowly decays
-            //  Idea: It instantly loses it after passing some x velocity on 
             }
 
             return { return {} }
@@ -544,7 +410,7 @@ class WaterColumn {
             let minHeight: Float64 = 30
             if horzVelocity > 0 {
                 // green above bottom - 20
-                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20 - 20 * horzVelocity), Int32(Self.WIDTH - 2), Int32(20 * abs(horzVelocity) + minHeight), Color.lime)
+                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20 - 20 * horzVelocity), Int32(Self.WIDTH - 2), Int32(20 * abs(horzVelocity) + minHeight), Color(r: 100, g: 255, b: 0, a: 255))
             } else {
                 // magenta below bottom - 20
                 Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20), Int32(Self.WIDTH - 2), Int32(20 * -horzVelocity + minHeight), Color.magenta)

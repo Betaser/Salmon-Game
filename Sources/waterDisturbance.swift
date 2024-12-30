@@ -1,21 +1,5 @@
 import Foundation
 
-// start with a parabola
-struct DiscreteFunction {
-    let stepSize: Float64
-    let xYFunction: (Float64) -> Float64
-
-    func getOutputs(range: Range<Float64>) -> [Float64] {
-        var outputs: [Float64] = []
-        var x = range.lowerBound
-        while x < range.upperBound {
-            outputs.append(xYFunction(x)) 
-            x += stepSize
-        }
-        return outputs
-    }
-}
-
 class WaterDisturbance {
     var peakWave: DiscreteFunction
     let columnCount: Int
@@ -33,20 +17,15 @@ class WaterDisturbance {
         defer {
             peakWave = DiscreteFunction(
                 stepSize: Float64(WaterColumn.WIDTH), 
-                // upside down parabola
+                // Lame but most succinct take the function and decompose it strategy
                 xYFunction: { [unowned self] in 
-                    let center = (range.upperBound - range.lowerBound) / 2
-                    let normalizedX = ($0 - center) / ((range.upperBound - range.lowerBound) / 2)
-                    return (WaterColumn.VERTICAL_ZERO - 100) * (1 - pow(normalizedX, 2)) * 1.7
+                    // MAKE THESE SPLIT HALF AND HALF LEFT AND RIGHT.
+                    // return Float64(parabola(range: self.range, input: $0) * 340.0)
+                    // return Float64(triangleValley(range: self.range, input: $0) * 40.0)
+                    // This stays right only for testing though.
+                    let size = (range.upperBound - range.lowerBound)
+                    return (range.upperBound - $0) / size * 80.0
                 }
-                // uhhhh a triangle valley. It curves itself out.
-                /*
-                xYFunction: { [unowned self] in 
-                    let center = (range.upperBound - range.lowerBound) / 2
-                    let normalizedX = ($0 - center) / ((range.upperBound - range.lowerBound) / 2)
-                    return (WaterColumn.VERTICAL_ZERO - 100) * abs(normalizedX) * 2.7
-                }
-                */
             )
         }
     }
@@ -80,6 +59,7 @@ class WaterDisturbance {
             column.expectedCrushStartVelocity = crushVel
 
             // What if the horizontal velocities are set according to that which roughly forms the shape we want?
+            /*
             // First guess: mimic the shape, but leave a gap
             let sign = if i == columns.count / 2 && columns.count % 2 == 1 {
                 0.0
@@ -89,6 +69,8 @@ class WaterDisturbance {
                 -1.0
             }
             column.horzVelocity += sign * height * Self.FRAC
+            */
+            column.horzVelocity += height * Self.FRAC
             i += 1
         }
 
