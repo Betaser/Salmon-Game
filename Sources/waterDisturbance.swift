@@ -23,8 +23,16 @@ class WaterDisturbance {
                     // return Float64(parabola(range: self.range, input: $0) * 340.0)
                     // return Float64(triangleValley(range: self.range, input: $0) * 40.0)
                     // This stays right only for testing though.
+                    
+                    /*
                     let size = (range.upperBound - range.lowerBound)
                     return (range.upperBound - $0) / size * 80.0
+                    */
+
+                    let start = 10.0
+                    let count = Double(columnCount)
+                    let res = ((start < $0) && ($0 < start + count)) ? 100.0 * (1.0 - $0 / count) : 0.0
+                    return res
                 }
             )
         }

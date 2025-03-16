@@ -22,7 +22,7 @@ class Simulation {
     // static let waterColumnCount = 29
     // static let disturbanceCount = 13
     static let waterColumnCount = 19 * 6
-    static let disturbanceCount = 5 * 6
+    static let disturbanceCount = 9 * 6
     var water: [WaterColumn] = []
     var counter: Int32
     static var DEBUG_COUNTER: Int32 = 0

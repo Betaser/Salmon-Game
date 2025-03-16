@@ -92,7 +92,7 @@ class WaterColumn {
         color = Color.blue
         bottom = position.y + Float64(Self.HEIGHT)
         expectedCrushStartVelocity = 0
-        Self.waveCollisionsEnabled = false
+        Self.waveCollisionsEnabled = true 
         showHorz = true
         restitution = Self.DEFAULT_RESTITUTION 
         disturbance = .freelyMoving
@@ -241,6 +241,8 @@ class WaterColumn {
                 let neighboringVWithPull = leftV * (leftUsed ? 1.0 - pullingFrac : pullingFrac) + 
                                    rightV * (rightUsed ? 1.0 - pullingFrac : pullingFrac)
                 // This is the money maker. Experiment with this more, it propagates waves forward.
+                // For now, we aren't using pull.
+                let _ = neighboringVWithPull
                 // let neighboringV = neighboringVWithPull
 
                 /*
@@ -250,12 +252,43 @@ class WaterColumn {
                                  ? neighboringVWithPull : neighboringVNoPull
                 */
 
-                let neighboringV = leftV * (leftUsed ? 1 : 0) + rightV * (rightUsed ? 1 : 0)
+                // Note: We have a "8o." shaped right triangle that slopes down to the right
+                let neighboringV = (leftV * (leftUsed ? 1 : 0) + rightV * (rightUsed ? 1 : 0)) / 2
 
+                // Suppose we have 5 4 3
+                // Based on our observations, the 4 would get a lot of velocity, and the 5 loses a lot.
+                // Running through our algorithm, we conclude that the new values look as follows:
+
+                // Look at 5. 
+                // The column with 0 speed to its left means that there is no effect from the left column.
+                // The column on its right has 4 speed. The boolean rightUsed is true. Therefore neighboringV evaluates to 4.
+                // An inelastic collision means that the resulting end velocity of the column which had 5 speed should now be...
+                //  the average of the two. 4.5 speed.
+
+                // We now look at 4.
+                // The column on its left and the column on its right have non-zero velocity.
+                // The column on its left has (according to the previous frame) a velocity of 5. leftUsed evaluates to true.
+                // The column on its right has a velocity of 3. rightUsed evaluates to true.
+                // Therefore, neigboringV evaluates to the sum of 4 and 3; 7 speed.
+                // The result of an inelastic collision is then the average of 4 and 7; 5.5 speed.
+                
+                // So we can see that the middle column originally with speed 4 has 1 more speed the next frame. 
+                // This is essentially due to it experiencing differences in velocity from both the column to its right and its left. 
+                
+                // Okay, so we can't add the result of both neighboring velocities, because that kind of double counts momentum.
+                // But what are we trying to achieve? I argue that we want to essentially do two things:
+                // 1. Propagate the rough shape of whatever "shape" of horizontal velocity we start with
+                // 2. Flatten or otherwise avoid making the "shape" more imbalanced
+
+                // To do part 1, I think of just swapping velocities with a neighbor. Part 2 is some kind of averaging behavior taking maybe a selection of neighbors.
+
+                // This is used as the new value for horizontal velocity.
                 let collidedVel = inelasticCollision(restitution: 0, v: currV, colliderV: neighboringV)
-                // the two expr below are different.
+
                 let otherVel = currV + neighboringV - collidedVel
-                // let otherVel = inelasticCollision(v: neighboringV, colliderV: currV)
+
+                // This is directly used to affect vertical velocity.
+                let velChange = -abs(otherVel)
                 // this is not symmetric either:
                 // let otherVel = leftV + rightV
                 // let otherVel = currV
@@ -269,19 +302,18 @@ class WaterColumn {
                         // print(collidedVel)
                     }
                     // let velChange = abs(collidedVel) - abs(xVel) 
-                    let velChange = -abs(otherVel)
                     // Column 12 is the leftmost disturbed column, it and column 13 to its right
                     // achieve a balance of xvel to yvel so that they both go to the right with half the speed 12 had originally.
 
                     // Controls how fast the wave propagates. Slower = smaller waves, which we want.
-                    if Simulation.DEBUG_COUNTER % 5 == 0 {
+                    if Simulation.DEBUG_COUNTER % 1 == 0 {
                         column.horzVelocity = collidedVel
                     }
 
                     // decay of horzVelocity that is larger for columns that are higher up
                     let aboveZero = column.verticalZero - column.position.y
                     if aboveZero > 0 {
-                        column.horzVelocity *= max(0.9, 1 - aboveZero / 3000.0)
+                        // column.horzVelocity *= max(0.9, 1 - aboveZero / 3000.0)
                     }
 
 
