@@ -3,7 +3,7 @@ import Raylib
 // position at top left
 // could consider the center as the position
 
-class WaterColumn {
+class OldWaterColumn {
     static let DEFAULT_RESTITUTION = 0.98
     static let MASS = 4.5
     // static let SPRING_FACTOR = 0.095
@@ -19,8 +19,8 @@ class WaterColumn {
     static let HORZ_TO_VERT_FACTOR = 0.15
     static var waveCollisionsEnabled = false
 
-    unowned var left: WaterColumn? = nil 
-    unowned var right: WaterColumn? = nil 
+    unowned var left: OldWaterColumn? = nil 
+    unowned var right: OldWaterColumn? = nil 
 
     enum Disturbance {
         case freelyMoving
@@ -42,10 +42,10 @@ class WaterColumn {
     ]   
 
     var color: Color
-    var position: Vector2
-    var originalPosition: Vector2
+    var position: Vec2
+    var originalPosition: Vec2
     // up or down, has a similar effect to energy.
-    var velocity = Vector2(x: 0, y: 0)
+    var velocity = Vec2(x: 0, y: 0)
     var horzVelocity: Float64 {
         set(val) {
             velocity.x = val
@@ -71,7 +71,7 @@ class WaterColumn {
 
     deinit { refCount -= 1 }
 
-    init(position: Vector2) {
+    init(position: Vec2) {
         refCount += 1
         self.position = position
         verticalZero = 0
@@ -97,13 +97,13 @@ class WaterColumn {
         restitution = Self.DEFAULT_RESTITUTION 
         disturbance = .freelyMoving
 
-        let horzWaterBuf = Float64(screenWidth - Int32(Simulation.waterColumnCount * Self.WIDTH)) / 2.0
+        let horzWaterBuf = Float64(screenWidth - Int32(OldSimulation.waterColumnCount * Self.WIDTH)) / 2.0
         let id = Int32((position.x - horzWaterBuf) / Float64(Self.WIDTH))
         self.id = id
     }
 
-    func clone() -> WaterColumn {
-        let ret = WaterColumn(position: position)
+    func clone() -> OldWaterColumn {
+        let ret = OldWaterColumn(position: position)
         return ret
     }
 
@@ -113,7 +113,7 @@ class WaterColumn {
         var lastEdgeVel = 0.0
 
         // Rejected
-        private func alterEdgeVel(column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> () -> Void {
+        private func alterEdgeVel(column: OldWaterColumn, awareColumns: some Collection<OldWaterColumn>) -> () -> Void {
             // vel is inversely proporitional to avg of columns?
             var avgVel = 0.0
             var total = 0.0
@@ -138,7 +138,7 @@ class WaterColumn {
         // Rejected
         func alterFreelyMovingVel() {}
 
-        fileprivate func update(data: (Float64, Float64), isNewDip: Bool, column: WaterColumn, awareColumns: some Collection<WaterColumn>) -> (() -> () -> Void) {
+        fileprivate func update(data: (Float64, Float64), isNewDip: Bool, column: OldWaterColumn, awareColumns: some Collection<OldWaterColumn>) -> (() -> () -> Void) {
             // The wave algo! 
             // Every column that is freelyMoving or atEdge should be held to the same physics
             //  so that the edge columns don't seem out of place. (naive assumption)
@@ -172,7 +172,7 @@ class WaterColumn {
             */
 
             // What if we slow down the horizontal wave movement, obv fix this.
-            if WaterColumn.waveCollisionsEnabled && Simulation.DEBUG_COUNTER % 1 == 0 {
+            if OldWaterColumn.waveCollisionsEnabled && OldSimulation.DEBUG_COUNTER % 1 == 0 {
             // if true || isNewDip {
                 func inelasticCollision(restitution: Float64, v: Float64, colliderV: Float64) -> Float64 {
                     return (1 - restitution) / 2.0 * v + (1 + restitution) / 2.0 * colliderV
@@ -306,7 +306,7 @@ class WaterColumn {
                     // achieve a balance of xvel to yvel so that they both go to the right with half the speed 12 had originally.
 
                     // Controls how fast the wave propagates. Slower = smaller waves, which we want.
-                    if Simulation.DEBUG_COUNTER % 1 == 0 {
+                    if OldSimulation.DEBUG_COUNTER % 1 == 0 {
                         column.horzVelocity = collidedVel
                     }
 
@@ -359,7 +359,7 @@ class WaterColumn {
             // Assume that either the left or right has columns to disturb.
             // Otherwise, if the column is the last .beingDisturbed, it eventually dies
             if let c1 = left, let c2 = right {
-                func disturbNeighbors(_ n1: WaterColumn, _ n2: WaterColumn) -> Bool {
+                func disturbNeighbors(_ n1: OldWaterColumn, _ n2: OldWaterColumn) -> Bool {
                     return n1.disturbance == .freelyMoving && n2.disturbance == .beingDisturbed
                 }
                 if disturbNeighbors(c1, c2) {
@@ -376,7 +376,7 @@ class WaterColumn {
         return ret
     }
 
-    func update(data: (Float64, Float64), awareColumns: some Collection<WaterColumn>) -> (UInt, UpdateClosures) {
+    func update(data: (Float64, Float64), awareColumns: some Collection<OldWaterColumn>) -> (UInt, UpdateClosures) {
         let dip = position.y - verticalZero 
         let newDip = position.y + verticalVelocity - verticalZero
         // generally, make newDip have a bit of a buffer.

@@ -1,6 +1,6 @@
 import Foundation
 
-class WaterDisturbance {
+class OldWaterDisturbance {
     var peakWave: DiscreteFunction
     let columnCount: Int
     var range: Range<Float64>
@@ -10,15 +10,16 @@ class WaterDisturbance {
 
     init(columnCount: Int) {
         self.columnCount = columnCount
-        range = Float64(WaterColumn.WIDTH / 2)..<Float64(
-            columnCount * WaterColumn.WIDTH + Int(WaterColumn.WIDTH / 2))
+        range = Float64(OldWaterColumn.WIDTH / 2)..<Float64(
+            columnCount * OldWaterColumn.WIDTH + Int(OldWaterColumn.WIDTH / 2))
         peakWave = DiscreteFunction(stepSize: 0.0, xYFunction: { _ in 0.0 })
         // so that we can reference self.
         defer {
             peakWave = DiscreteFunction(
-                stepSize: Float64(WaterColumn.WIDTH), 
+                stepSize: Float64(OldWaterColumn.WIDTH), 
                 // Lame but most succinct take the function and decompose it strategy
                 xYFunction: { [unowned self] in 
+                    _ = self
                     // MAKE THESE SPLIT HALF AND HALF LEFT AND RIGHT.
                     // return Float64(parabola(range: self.range, input: $0) * 340.0)
                     // return Float64(triangleValley(range: self.range, input: $0) * 40.0)
@@ -38,7 +39,7 @@ class WaterDisturbance {
         }
     }
 
-    func crushColumns<T>(columns: T) where T: Collection, T.Element == WaterColumn, T.Index == Int {
+    func crushColumns<T>(columns: T) where T: Collection, T.Element == OldWaterColumn, T.Index == Int {
         let columnHeights = peakWave.getOutputs(range: range)
 
         // let vacuumLedVel = columnHeights.reduce(0, { a, b in a + b })
@@ -52,7 +53,7 @@ class WaterDisturbance {
 
             // tried time based, doesn't work any better.
             // This shouldn't cause the columns to jump to the expected height, I'm fairly sure.
-            let velocity = (2 * WaterColumn.GRAVITY * height).squareRoot()
+            let velocity = (2 * OldWaterColumn.GRAVITY * height).squareRoot()
             // column.crushedBy(amt: velocity)
             // DISABLE TO JUST SEE HORZ STUFF
 

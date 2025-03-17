@@ -1,4 +1,64 @@
 import Foundation
+import Raylib
+
+// Mathy
+func toTuple(_ v: Vector2) -> (Float64, Float64) {
+    return (Float64(v.x), Float64(v.y))
+}
+
+// Use Raylib.Vector, fully qualified name to differentiate
+struct Vec2 {
+    var x: Float64
+    var y: Float64
+    init(x: Float64, y: Float64) {
+        self.x = x
+        self.y = y
+    }
+    func clone() -> Self {
+        return Self(x: x, y: y)
+    }
+}
+
+struct Rect {
+    var x: Float64
+    var y: Float64
+    var width: Float64
+    var height: Float64
+
+    init() {
+        x = 0
+        y = 0
+        width = 0
+        height = 0
+    }
+
+    init(_ x: Float64, _ y: Float64, _ width: Float64, _ height: Float64) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    mutating func fromInts(_ x: Int32, _ y: Int32, _ width: Int32, _ height: Int32) -> Self {
+        self.x = Float64(x)
+        self.y = Float64(y)
+        self.width = Float64(width)
+        self.height = Float64(height)
+        return self
+    }
+
+    func toInts() -> (Int32, Int32, Int32, Int32) {
+        return (Int32(x), Int32(y), Int32(width), Int32(height))
+    }
+
+    func pointInside(_ point: (Float64, Float64)) -> Bool {
+        return
+            x <= point.0 && point.0 <= x + width &&
+            y <= point.1 && point.1 <= y + height
+    }
+}
+
+// Codey
 typealias UpdateClosures = [UInt : () -> () -> Void]
 
 func triangleValley(range: Range<Float64>, input: Float64) -> Float64 {
@@ -42,18 +102,6 @@ func indexExprsAndMax(exprs: [(() -> () -> Void)?]) -> (UInt, UpdateClosures) {
     }
 
     return (maxIndex, dict)
-}
-
-class Vector2 {
-    var x: Float64
-    var y: Float64
-    init(x: Float64, y: Float64) {
-        self.x = x
-        self.y = y
-    }
-    func clone() -> Vector2 {
-        return Vector2(x: x, y: y)
-    }
 }
 
 extension Collection {
