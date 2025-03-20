@@ -19,6 +19,7 @@ do {
     // to keep ref counted objects in a finite scope, so that the proper number can be printed at the end of the program
     let oldSimulation = OldSimulation()
     let test1 = Test1()
+    let test2 = Test2()
     let helpMenu = HelpMenuState()
 
     // Current plan: Create a vertical options list for what GameState to run
@@ -26,6 +27,7 @@ do {
 
     debugMenu.addOption(oldSimulation)
     debugMenu.addOption(test1)
+    debugMenu.addOption(test2)
     debugMenu.addOption(helpMenu)
 
     var activeState: State = debugMenu

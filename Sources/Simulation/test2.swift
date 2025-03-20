@@ -1,8 +1,8 @@
 import Raylib
 import Foundation
 
-class Test1 : State {
-    static let WATER_COLUMN_COUNT:Int32 = 19 * 6
+class Test2 : State {
+    static let WATER_COLUMN_COUNT: Int32 = 3
     var water: [WaterColumn] = []
     var counter: Int32
     static var DEBUG_COUNTER: Int32 = 0
@@ -27,15 +27,16 @@ class Test1 : State {
         simSpeed = 1.0
         leftoverSpeed = 0.0
 
-        let horzWaterBuf: Int32 = (screenWidth - Int32(Self.WATER_COLUMN_COUNT * WaterColumn.WIDTH)) / 2
+        let WIDTH: Int32 = 100
+        let horzWaterBuf: Int32 = (screenWidth - Int32(Self.WATER_COLUMN_COUNT * WIDTH)) / 2
 
         for i in 0..<Self.WATER_COLUMN_COUNT {
             let column = WaterColumn(
                 position: Vec2(
-                    x: Float64(horzWaterBuf) + Float64(WaterColumn.WIDTH * i), 
+                    x: Float64(horzWaterBuf) + Float64((WIDTH + 5) * i), 
                     y: WaterColumn.VERTICAL_ZERO),
                 waterColumnCount: Self.WATER_COLUMN_COUNT,
-                width: WaterColumn.WIDTH)
+                width: WIDTH)
             water.append(column)
         }
 
@@ -149,13 +150,6 @@ class Test1 : State {
         }
 
         var text = ""
-        // Too many columns = render only 13 of them I guess?
-        let N = 13
-        let halfish = Int((water.count - N) / 2)
-        for (i, column) in water[halfish..<water.count - halfish].enumerated() {
-            // text += "#\(halfish + i) Vertical velocity: \(String(format: "%.4f", column.verticalVelocity))\n"
-            text += "#\(halfish + i) x vel: \(String(format: "%.4f", column.leftSide.horzVel))\n"
-        }
         return (text, screenWidth - 300, 175, 20, Color.darkGreen)
     }
     
@@ -217,7 +211,7 @@ class Test1 : State {
         }
 
         for column in water {
-            column.render(bottom: Self.COLUMN_BOTTOM, vScale: WaterColumn.V_SCALE)
+            column.render(bottom: Self.COLUMN_BOTTOM, vScale: 1.8)
         }
         // debugging
 

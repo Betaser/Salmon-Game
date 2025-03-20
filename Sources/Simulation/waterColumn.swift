@@ -4,26 +4,115 @@ import Raylib
 // could consider the center as the position
 
 class WaterColumn {
-    static let DEFAULT_RESTITUTION = 0.98
     static let MASS = 4.5
     // static let SPRING_FACTOR = 0.095
-    static let SPRING_FACTOR = 0.045
+    static let V_SCALE = 0.6
+    static let SPRING_FACTOR = 0.085
+    // Essentially the default height.
     static let VERTICAL_ZERO = 300.0
+    // If gravity is too small, spring force pushes the column upwards at a constant rate.
     static let GRAVITY = 0.105
-    // static let WIDTH = 20
     // Make sure this is an EVEN number! For at least the disturbance function calculations.
-    static let WIDTH = 2 * 3
-    static let HEIGHT = 200
-    // static let CRUSH_ENERGY_SAVED = 0.99
+    static let WIDTH: Int32 = 2 * 3
     static let CRUSH_ENERGY_SAVED = 0.95
-    static let HORZ_TO_VERT_FACTOR = 0.15
 
     unowned var left: WaterColumn? = nil 
     unowned var right: WaterColumn? = nil 
 
+    // Left and right sides
+    struct Side {
+        var velocity: Vec2
+        var horzVel: Float64 {
+            set { velocity.x = newValue }
+            get { return velocity.x }
+        }
+        var vertVel: Float64 {
+            set { velocity.y = newValue }
+            get { return velocity.y }
+        }
+        var width: Float64
+        var size: Float64
+        var height: Float64
+
+        init(width: Int32) {
+            self.width = Float64(width) / 2.0
+            height = Float64(WaterColumn.VERTICAL_ZERO)
+            size = self.width * height
+            velocity = Vec2(x: 0, y: 0)
+        }
+
+        mutating func update(column: WaterColumn) {
+            let verticalZero = column.verticalZero
+            let dip = verticalZero - height
+            let newDip = verticalZero - (height + vertVel)
+
+            if newDip >= 0 {
+                let springForce = WaterColumn.SPRING_FACTOR * dip
+                let totalForce = springForce + WaterColumn.MASS * -WaterColumn.GRAVITY
+
+                vertVel += totalForce / WaterColumn.MASS
+                vertVel *= WaterColumn.CRUSH_ENERGY_SAVED
+            } else {
+                vertVel += -WaterColumn.GRAVITY
+            }
+
+            width -= horzVel
+            vertVel += horzVel * 1.6
+            height += vertVel
+
+            // Then transfer horzVel to neighbor
+            if width < 0.2 * Float64(column.width / 2) {
+                if let neighbor = column.right {
+                    neighbor.leftSide.horzVel += horzVel
+                }
+                horzVel = 0
+                width = Float64(column.width / 2)
+            }
+        }
+
+        // this is flipped upside down.
+        mutating func update2(column: WaterColumn) {
+            let verticalZero = column.verticalZero 
+            let dip = height - verticalZero
+            let newDip = height + vertVel - verticalZero
+
+            if newDip >= 0 {
+                let springForce = -WaterColumn.SPRING_FACTOR * dip
+                let totalForce = springForce + WaterColumn.MASS * WaterColumn.GRAVITY
+
+                vertVel += totalForce / WaterColumn.MASS
+                vertVel *= WaterColumn.CRUSH_ENERGY_SAVED
+            } else {
+                vertVel += WaterColumn.GRAVITY
+            }
+
+
+            width -= horzVel
+
+            vertVel += horzVel * 5
+
+            height += vertVel
+            // Then transfer horzVel to neighbor
+            if width < 0.2 * Float64(column.width / 2) {
+                if let neighbor = column.right {
+                    neighbor.leftSide.horzVel += horzVel
+                }
+                horzVel = 0
+                width = Float64(column.width / 2)
+            }
+        }
+    }
+    // do we want to make width negative for one of the sides? for now only 
+    var leftSide: Side
+    var rightSide: Side
     var color: Color
     var position: Vec2
-    var originalPosition: Vec2
+    var width: Int32
+    var originalPosition: Vec2    
+    var id: Int32 = 0
+    private (set) var verticalZero: Float64
+
+    let waterColumnCount: Int32
     // up or down, has a similar effect to energy.
     var velocity = Vec2(x: 0, y: 0)
     var horzVelocity: Float64 {
@@ -42,23 +131,19 @@ class WaterColumn {
             return velocity.y
         }
     }
-    var id: Int32 = 0
-    var showHorz = true
-    private var bottom: Float64
-    private (set) var verticalZero: Float64
-    var restitution: Float64 = -99;
-    let waterColumnCount: Int
 
     deinit { refCount -= 1 }
 
-    init(position: Vec2, waterColumnCount: Int) {
+    init(position: Vec2, waterColumnCount: Int32, width: Int32) {
         refCount += 1
         self.position = position
         verticalZero = 0
         originalPosition = position.clone()
         color = Color.blue
-        bottom = 0
         wave = Wave() 
+        leftSide = Side(width: width / 2)
+        rightSide = Side(width: width / 2)
+        self.width = width
         self.waterColumnCount = waterColumnCount
         reinit()
     }
@@ -70,17 +155,19 @@ class WaterColumn {
         horzVelocity = 0
         velocity.y = 0
         color = Color.blue
-        bottom = position.y + Float64(Self.HEIGHT)
-        showHorz = true
-        restitution = Self.DEFAULT_RESTITUTION 
 
-        let horzWaterBuf = Float64(screenWidth - Int32(waterColumnCount * Self.WIDTH)) / 2.0
-        let id = Int32((position.x - horzWaterBuf) / Float64(Self.WIDTH))
+        leftSide.height = position.y
+        rightSide.height = position.y
+        leftSide.width = Float64(width / 2)
+        rightSide.width = Float64(width / 2)
+
+        let horzWaterBuf = Float64(screenWidth - Int32(waterColumnCount * width)) / 2.0
+        let id = Int32((position.x - horzWaterBuf) / Float64(width))
         self.id = id
     }
 
     func clone() -> WaterColumn {
-        let ret = WaterColumn(position: position, waterColumnCount: waterColumnCount)
+        let ret = WaterColumn(position: position, waterColumnCount: waterColumnCount, width: width)
         return ret
     }
 
@@ -95,12 +182,14 @@ class WaterColumn {
             return { return {} }
         }
     }
-
+    
     func update(data: (Float64, Float64), awareColumns: some Collection<WaterColumn>) -> (UInt, UpdateClosures) {
+        leftSide.update(column: self)
+
         let dip = position.y - verticalZero 
         let newDip = position.y + verticalVelocity - verticalZero
-        // generally, make newDip have a bit of a buffer.
 
+        // generally, make newDip have a bit of a buffer.
         let dipBuffer = -0.0
 
         let isNewDip = newDip >= dipBuffer && dip < dipBuffer
@@ -144,21 +233,45 @@ class WaterColumn {
         })
     }
 
-    func render() {
-        // It's kinda too big right now, make the vertical size smaller.
-        let V_SCALE = 0.3
-        Raylib.drawRectangle(Int32(position.x), Int32((1 - V_SCALE) * verticalZero + V_SCALE * position.y), Int32(Self.WIDTH), Int32(bottom - ((1 - V_SCALE) * verticalZero + V_SCALE * position.y)), color)
-        Raylib.drawRectangleLines(Int32(position.x), Int32((1 - V_SCALE) * verticalZero + V_SCALE * position.y), Int32(Self.WIDTH), Int32(bottom - ((1 - V_SCALE) * verticalZero + V_SCALE * position.y)), Color.yellow)
+    func render(bottom: Int32, vScale: Float64) {
+        var c = color
+        c.a = 80
 
-        if showHorz {
-            let minHeight: Float64 = 30
-            if horzVelocity > 0 {
-                // green above bottom - 20
-                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20 - 20 * horzVelocity), Int32(Self.WIDTH - 2), Int32(20 * abs(horzVelocity) + minHeight), Color(r: 100, g: 255, b: 0, a: 255))
+        let height = position.y * vScale
+        let y = Float64(bottom) - height
+        Raylib.drawRectangleLines(
+            Int32(position.x),
+            Int32(y),
+            width,
+            Int32(height),
+            c)
+
+
+        // Render leftSide on top.
+        do {
+            /*
+            let color = if leftSide.width < Float64(width / 2) {
+                Color.lime
             } else {
-                // magenta below bottom - 20
-                Raylib.drawRectangle(Int32(position.x), Int32(bottom - 20), Int32(Self.WIDTH - 2), Int32(20 * -horzVelocity + minHeight), Color.magenta)
+                Color.magenta
+            }            
+            */
+            let newDip = height + leftSide.vertVel - verticalZero
+            let color = if newDip >= 0 {
+                Color.lime
+            } else {
+                Color.magenta
             }
+
+            let height = leftSide.height * vScale
+            let y = Float64(bottom) - height
+            let buffer: Int32 = 2
+            Raylib.drawRectangle(
+                Int32(position.x) + buffer,
+                Int32(y),
+                Int32((width - buffer) / 2),
+                Int32(height),
+                color)
         }
     }
 }

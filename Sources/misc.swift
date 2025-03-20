@@ -6,6 +6,26 @@ func toTuple(_ v: Vector2) -> (Float64, Float64) {
     return (Float64(v.x), Float64(v.y))
 }
 
+// https://stackoverflow.com/questions/54821659/swift-4-2-seeding-a-random-number-generator
+struct SplitMix64: RandomNumberGenerator {
+    private var seed: UInt64
+    init(seed: UInt64) {
+        self.seed = seed
+    }
+    mutating func next() -> UInt64 {
+        self.seed &+= 0x9e3779b97f4a7c15
+        var z: UInt64 = seed
+        z = (z ^ (z &>> 30)) &* 0xbf58476d1ce4e5b9
+        z = (z ^ (z &>> 27)) &* 0x94d049bb133111eb
+        return z ^ (z &>> 31)
+    }
+    // Yes there is slight bias in randomness.
+    mutating func range(min: UInt64, max: UInt64) -> UInt64 {
+        return next() % (max + 1 - min) + max
+    }
+}
+var SEEDED_RNG = SplitMix64(seed: 69420)
+
 // Use Raylib.Vector, fully qualified name to differentiate
 struct Vec2 {
     var x: Float64

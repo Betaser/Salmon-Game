@@ -5,12 +5,12 @@ class WaterDisturbance {
     let columnCount: Int
     var range: Range<Float64>
 
-    static let VACUUM_STRENGTH = 0.50
+    static let VACUUM_STRENGTH = 0.10
 
     init(columnCount: Int) {
         self.columnCount = columnCount
         range = Float64(WaterColumn.WIDTH / 2)..<Float64(
-            columnCount * WaterColumn.WIDTH + Int(WaterColumn.WIDTH / 2))
+            columnCount * Int(WaterColumn.WIDTH) + Int(WaterColumn.WIDTH / 2))
         peakWave = DiscreteFunction(stepSize: 0.0, xYFunction: { _ in 0.0 })
         // so that we can reference self.
         defer {
@@ -31,7 +31,7 @@ class WaterDisturbance {
         }
     }
 
-    func crushColumns<T>(columns: T) where T: Collection, T.Element == WaterColumn, T.Index == Int {
+    fileprivate func crushColumns<T>(columns: T) where T: Collection, T.Element == WaterColumn, T.Index == Int {
         let columnHeights = peakWave.getOutputs(range: range)
 
         for (height, column) in zip(columnHeights, columns) {

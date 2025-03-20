@@ -12,6 +12,7 @@ class DebugMenuState : State {
             switch option {
                 case is OldSimulation: "Old simulation"
                 case is Test1: "Test 1, propagating wave"
+                case is Test2: "Test 2, water settling to a stop"
                 case is HelpMenuState: "Help menu"
                 default: nil
             }
@@ -48,7 +49,7 @@ class DebugMenuState : State {
         let HEIGHT = screenHeight / 8
         let HORZ_GAP = screenWidth / 4
 
-        var index = Int32(0)
+        var index: Int32 = 0
 
         for (desc, state) in descriptionToState {
             let rectY = screenHeight / 2 
