@@ -150,53 +150,70 @@ class OldSimulation : State {
         }
                 // let leftV = column.left?.horzVelocity ?? 0
                 // let rightV = column.right?.horzVelocity ?? 0
+
         do {
-            var allClosures: [UpdateClosures] = []
+            var closureSeqs: [UpdateClosures] = []
             var maxIndices: [UInt] = []
 
-            for (i, col) in water.enumerated() {
+            for i in 0..<water.count {
+                let col = water[i]
                 let (maxIndex, closures) = col.update(data: waveData[i], awareColumns: water)
                 maxIndices.append(maxIndex)
                 if closures.count > 0 {
-                    allClosures.append(closures) 
+                    closureSeqs.append(closures) 
                 }
             }
 
-            var closuresLeftAts: [Int : Int] = [:]
-            for i in 0..<allClosures.count {
-                closuresLeftAts[i] = 0
-            }
+            // Bestest attempt
+            if true {
+                let seqCount = closureSeqs.count
+                let closureMaxDepth = maxIndices.max() ?? 0
 
-            var closureI: UInt = 0
-            while closuresLeftAts.count > 0 {
-                var iter = closuresLeftAts.makeIterator()
-                func loop() {
-                    if let (allClosuresI, dist) = iter.next() {
-                        // decrement dist
-                        closuresLeftAts[allClosuresI] = closuresLeftAts[allClosuresI].unsafelyUnwrapped - 1
+                var depth: UInt = 0
+                var distances: [Int] = []
+                for i in 0..<seqCount {
+                    distances.append(Int(closureSeqs[i][0].0))
+                }
 
+                while depth <= closureMaxDepth {
+                    var seqI = 0
+                    
+                    func breadth() {
+                        if seqI >= seqCount {
+                            return
+                        }
+
+                        let dist = distances[seqI]
+
+                        var closureFunc: (() -> Void)? = nil
                         if dist > 0 {
-                            loop()
+                            distances[seqI] -= 1
+                        } else if dist == 0 {
+                            let (depth, closureChain) = closureSeqs[seqI][0]
+                            closureFunc = closureChain()
+
+                            closureSeqs[seqI].remove(at: 0)
+                            distances[seqI] = if closureSeqs[seqI].count == 0 {
+                                -1
+                            } else {
+                                Int(closureSeqs[seqI][0].0 - depth - 1)
+                            }
+                        } else {
+                            // print("skipped closures for \(seqI)")
                         }
 
-                        let closures = allClosures[allClosuresI]
-                        var possibleClosure = {}
+                        seqI += 1
+                        breadth()
 
-                        if let closure = closures[closureI] {
-                            possibleClosure = closure()
-                        } else if closureI >= maxIndices[allClosuresI] {
-                            closuresLeftAts.remove(at: closuresLeftAts.index(forKey: allClosuresI).unsafelyUnwrapped)
+                        if let closure = closureFunc {
+                            closure()
                         }
-
-                        loop()
-                        possibleClosure()
-                    } else {
-                        return
                     }
-                }
-                loop()
 
-                closureI += 1
+                    breadth()
+
+                    depth += 1
+                }
             }
         }
 

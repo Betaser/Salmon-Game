@@ -20,6 +20,8 @@ do {
     let oldSimulation = OldSimulation()
     let test1 = Test1()
     let test2 = Test2()
+    let test3 = Test3()
+    let test4 = Test4()
     let helpMenu = HelpMenuState()
 
     // Current plan: Create a vertical options list for what GameState to run
@@ -28,6 +30,8 @@ do {
     debugMenu.addOption(oldSimulation)
     debugMenu.addOption(test1)
     debugMenu.addOption(test2)
+    debugMenu.addOption(test3)
+    debugMenu.addOption(test4)
     debugMenu.addOption(helpMenu)
 
     var activeState: State = debugMenu

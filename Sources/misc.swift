@@ -1,6 +1,22 @@
 import Foundation
 import Raylib
 
+
+
+/*
+LISTEN
+Reverse the order for waterColumn's vacuum code
+But also, think about making a function into the following:
+func blah() {
+    variables...
+    return (Getter({ get shit and set variables }), Setter({ set shit like .left or .right based on variables }))
+}
+Then change misc.swift to run getters and then setters, like id 0's getter, id 1's getter, id 2's getter, then id 2's setter, etc.
+To enforce this system of ordering stuff. Of course a getter and setter for column must be created.
+*/
+
+
+
 // Mathy
 func toTuple(_ v: Vector2) -> (Float64, Float64) {
     return (Float64(v.x), Float64(v.y))
@@ -78,8 +94,9 @@ struct Rect {
     }
 }
 
-// Codey
-typealias UpdateClosures = [UInt : () -> () -> Void]
+// Bad, we want order
+// typealias UpdateClosures = [UInt : () -> () -> Void]
+typealias UpdateClosures = [(UInt, () -> () -> Void)]
 
 func triangleValley(range: Range<Float64>, input: Float64) -> Float64 {
     let center = (range.upperBound - range.lowerBound) / 2
@@ -109,19 +126,47 @@ struct DiscreteFunction {
     }
 }
 
+protocol ClosureSeq {
+    associatedtype T
+    associatedtype G
+    associatedtype S
+
+    func allGetAndSets() -> [((G) -> Void, (S) -> Void)?]
+    var getter: G { get }
+    var setter: S { get }
+}
+
+extension ClosureSeq {
+    typealias DistAndGAS = [(UInt, ((G) -> Void, (S) -> Void))]
+    func indexExprsAndMaxGAS(exprs: [((G) -> Void, (S) -> Void)?]) -> (UInt, DistAndGAS) {
+        var index: UInt = 0
+        var maxIndex: UInt = 0
+        var orderedPairs = DistAndGAS()
+        for expr in exprs {
+            if let expr = expr {
+                maxIndex = index
+                orderedPairs.append((index, expr))
+            }
+            index += 1
+        }
+
+        return (maxIndex, orderedPairs)
+    }
+}
+
 func indexExprsAndMax(exprs: [(() -> () -> Void)?]) -> (UInt, UpdateClosures) {
     var index: UInt = 0
     var maxIndex: UInt = 0
-    var dict = UpdateClosures()
+    var orderedPairs = UpdateClosures()
     for expr in exprs {
         if let expr = expr {
             maxIndex = index
-            dict[index] = expr
+            orderedPairs.append((index, expr))
         }
         index += 1
     }
 
-    return (maxIndex, dict)
+    return (maxIndex, orderedPairs)
 }
 
 extension Collection {
